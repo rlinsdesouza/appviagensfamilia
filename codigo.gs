@@ -51,6 +51,11 @@ function doPost(e) {
     var found = false;
 	var isNew = true; // Assumimos que é novo
 	
+	// Validação de segurança: ID não pode ser vazio
+if (!p.ID || p.ID.toString().trim() === "") {
+    return ContentService.createTextOutput(JSON.stringify({status: "error", msg: "O ID é obrigatório!"})).setMimeType(ContentService.MimeType.JSON);
+}
+	
 	// Verifica se ID já existe
 for (var i = 1; i < data.length; i++) {
     if (data[i][0].toString() == p.ID.toString()) {

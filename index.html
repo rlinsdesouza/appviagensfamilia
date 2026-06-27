@@ -53,6 +53,9 @@
 	<div>
         <label>Busca Rápida (Nome, Região ou ID)</label>
         <input type="text" id="search-input" placeholder="🔍 Digite para buscar..." onkeyup="renderData()">
+		<button onclick="abrirModal()" class="btn" style="background:#2f855a; color:white; padding:10px; cursor:pointer;">
+        + Novo Destino
+    </button>
     </div>
     <div>
         <label>Filtrar por Região</label>
@@ -118,7 +121,7 @@
     }
 
     async function loadData() {
-        if(API_URL === "https://script.google.com/macros/s/AKfycbzm-Mx-05bSGcSWWjFk-opgbhycOIHRd591dVZTxJwJpP7fMWtlQp5H6M1TtE07KptO9w/exec" || API_URL.includes("/dev")) { 
+        if(API_URL === "https://script.google.com/macros/s/AKfycbzfBBTn_mfSnt0IIgTP55VxW9qTfMhaNNMmo-E0AsEesu8x7eDqRWVwhLB-1m8liRrMCA/exec" || API_URL.includes("/dev")) { 
             alert("Por favor, cole a URL de produção (/exec) do Google Apps Script na variável API_URL do HTML!"); 
             return; 
         }
@@ -418,17 +421,42 @@ async function excluirDestino(id) {
     document.getElementById('loader').style.display = 'none';
 }
 
-function abrirModal(id) {
+function abrirModal(id = null) {
     const modal = document.getElementById('modalDestino');
-    modal.style.display = 'block';
+    const idField = document.getElementById('modal-id');
+    const title = document.getElementById('modalTitle');
     
-    let p = places.find(x => x.ID == id);
-    if(p) {
-        document.getElementById('modal-id').value = p.ID;
-        document.getElementById('modal-nome').value = p.Nome;
-        document.getElementById('modal-regiao').value = p.Regiao;
-        document.getElementById('modal-lat').value = p.Lat;
-        document.getElementById('modal-lng').value = p.Lng;
+    modal.style.display = 'block';
+
+    if (id) {
+        // MODO EDIÇÃO
+        title.innerText = "Editar Destino";
+        idField.disabled = true; // Não podemos mudar o ID de um destino existente
+        
+        let p = places.find(x => x.ID == id);
+        if(p) {
+            document.getElementById('modal-id').value = p.ID;
+            document.getElementById('modal-nome').value = p.Nome;
+            document.getElementById('modal-regiao').value = p.Regiao;
+            document.getElementById('modal-lat').value = p.Lat;
+            document.getElementById('modal-lng').value = p.Lng;
+            // Se tiver o campo histórico no modal
+            if(document.getElementById('modal-historico')) 
+                document.getElementById('modal-historico').value = p.Historico || "";
+        }
+    } else {
+        // MODO CRIAÇÃO
+        title.innerText = "Novo Destino";
+        idField.disabled = false; // Permite digitar um novo ID
+        
+        // Limpa todos os campos
+        idField.value = "";
+        document.getElementById('modal-nome').value = "";
+        document.getElementById('modal-regiao').value = "";
+        document.getElementById('modal-lat').value = "";
+        document.getElementById('modal-lng').value = "";
+        if(document.getElementById('modal-historico')) 
+            document.getElementById('modal-historico').value = "";
     }
 }
 
