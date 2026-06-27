@@ -1,3 +1,4 @@
+// Função de cálculo de distância
 function getDistancia(lat1, lon1, lat2, lon2) {
   var R = 6371000;
   var dLat = (lat2 - lat1) * Math.PI / 180;
@@ -6,22 +7,24 @@ function getDistancia(lat1, lon1, lat2, lon2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
 
+// VALIDAÇÃO: Sem o sinal de '=' nos parâmetros para evitar SyntaxError
 function validarDestino(novoP, dataExistente, idAtual) {
   for (var i = 1; i < dataExistente.length; i++) {
-    var idExistente = dataExistente[i][0].toString();
-    var latExistente = dataExistente[i][9];
-    var lngExistente = dataExistente[i][10];
+    var row = dataExistente[i];
+    var idExistente = row[0] ? row[0].toString() : "";
+    var latExistente = row[9];
+    var lngExistente = row[10];
     
-    // Checa ID (ignora se for o próprio ID sendo editado)
-    if (idExistente == novoP.ID.toString() && idExistente != idAtual) return "ID duplicado!";
+    // Checa ID duplicado
+    if (idExistente === novoP.ID.toString() && idExistente !== idAtual.toString()) return "ID já cadastrado!";
     
-    // Checa Proximidade (ignora se for o mesmo ID)
-    if (idExistente != novoP.ID.toString()) {
+    // Checa Proximidade (200m)
+    if (idExistente !== novoP.ID.toString()) {
       var dist = getDistancia(novoP.Lat, novoP.Lng, latExistente, lngExistente);
       if (dist < 200) return "Local duplicado! Já existe um destino a menos de 200m.";
     }
   }
-  return null; // Nenhuma duplicata
+  return null;
 }
 
 function doGet() {
@@ -31,9 +34,7 @@ function doGet() {
   var result = [];
   for (var i = 1; i < data.length; i++) {
     var obj = {};
-    for (var j = 0; j < headers.length; j++) {
-      obj[headers[j]] = data[i][j];
-    }
+    for (var j = 0; j < headers.length; j++) { obj[headers[j]] = data[i][j]; }
     result.push(obj);
   }
   return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
@@ -41,41 +42,42 @@ function doGet() {
 
 function doPost(e) {
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
-  var params = JSON.parse(e.postData.contents);
-  var data = sheet.getDataRange().getValues();
-  
-  // AÇÃO: IMPORTAÇÃO SEGURA (APPEND)
-  if (params.action === 'append_import') {
-    var rowsToAppend = [];
-    params.data.forEach(function(d) {
-      var erro = validarDestino(d, data, "");
-      if (!erro) {
-        rowsToAppend.push([d.ID, d.Regiao, d.Nome, d.Categoria, d.Meses_Ideais, d.Esforco, d.Janela, d.Custo, d.Hub, d.Lat, d.Lng, d.Familias, d.Historico || ""]);
-        // Adiciona temporariamente aos dados para validar duplicatas dentro do próprio lote
-        data.push([d.ID, "", "", "", "", "", "", "", "", d.Lat, d.Lng]); 
-      }
-    });
-    if (rowsToAppend.length > 0) sheet.getRange(sheet.getLastRow() + 1, 1, rowsToAppend.length, 13).setValues(rowsToAppend);
-    return ContentService.createTextOutput(JSON.stringify({status: "success", count: rowsToAppend.length})).setMimeType(ContentService.MimeType.JSON);
-  }
-  
-  
-// AÇÃO: SALVAR/EDITAR
-  if (params.action === 'save_row') {
-    var p = params.data;
-    var erro = validarDestino(p, data, p.ID);
-    if (erro) return ContentService.createTextOutput(JSON.stringify({status: "error", msg: erro})).setMimeType(ContentService.MimeType.JSON);
+  try {
+    var params = JSON.parse(e.postData.contents);
+    var data = sheet.getDataRange().getValues();
     
-    var found = false;
-    for (var i = 1; i < data.length; i++) {
-      if (data[i][0].toString() == p.ID.toString()) {
-        sheet.getRange(i + 1, 1, 1, 13).setValues([[p.ID, p.Regiao, p.Nome, p.Categoria, p.Meses_Ideais, p.Esforco, p.Janela, p.Custo, p.Hub, p.Lat, p.Lng, p.Familias, p.Historico]]);
-        found = true; break;
-      }
+    // IMPORTAÇÃO
+    if (params.action === 'append_import') {
+      var rowsToAppend = [];
+      params.data.forEach(function(d) {
+        var erro = validarDestino(d, data, "");
+        if (!erro) {
+          rowsToAppend.push([d.ID, d.Regiao, d.Nome, d.Categoria, d.Meses_Ideais, d.Esforco, d.Janela, d.Custo, d.Hub, d.Lat, d.Lng, d.Familias, d.Historico || ""]);
+          data.push([d.ID, "", "", "", "", "", "", "", "", d.Lat, d.Lng]); 
+        }
+      });
+      if (rowsToAppend.length > 0) sheet.getRange(sheet.getLastRow() + 1, 1, rowsToAppend.length, 13).setValues(rowsToAppend);
+      return ContentService.createTextOutput(JSON.stringify({status: "success", count: rowsToAppend.length})).setMimeType(ContentService.MimeType.JSON);
     }
-    if (!found) sheet.appendRow([p.ID, p.Regiao, p.Nome, p.Categoria, p.Meses_Ideais, p.Esforco, p.Janela, p.Custo, p.Hub, p.Lat, p.Lng, p.Familias, p.Historico]);
-    return ContentService.createTextOutput(JSON.stringify({status: "success"})).setMimeType(ContentService.MimeType.JSON);
+    
+    // SALVAR
+    if (params.action === 'save_row') {
+      var p = params.data;
+      var erro = validarDestino(p, data, p.ID);
+      if (erro) return ContentService.createTextOutput(JSON.stringify({status: "error", msg: erro})).setMimeType(ContentService.MimeType.JSON);
+      
+      var found = false;
+      for (var i = 1; i < data.length; i++) {
+        if (data[i][0].toString() == p.ID.toString()) {
+          sheet.getRange(i + 1, 1, 1, 13).setValues([[p.ID, p.Regiao, p.Nome, p.Categoria, p.Meses_Ideais, p.Esforco, p.Janela, p.Custo, p.Hub, p.Lat, p.Lng, p.Familias, p.Historico]]);
+          found = true; break;
+        }
+      }
+      if (!found) sheet.appendRow([p.ID, p.Regiao, p.Nome, p.Categoria, p.Meses_Ideais, p.Esforco, p.Janela, p.Custo, p.Hub, p.Lat, p.Lng, p.Familias, p.Historico]);
+      return ContentService.createTextOutput(JSON.stringify({status: "success"})).setMimeType(ContentService.MimeType.JSON);
+    }
+    return ContentService.createTextOutput(JSON.stringify({status: "error", msg: "Ação inválida"})).setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({status: "error", msg: err.toString()})).setMimeType(ContentService.MimeType.JSON);
   }
-  
-  return ContentService.createTextOutput(JSON.stringify({status: "error", msg: "Ação inválida"})).setMimeType(ContentService.MimeType.JSON);
 }
