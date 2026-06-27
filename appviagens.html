@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Legado 40 Anos - Expedição Família</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        body { font-family: 'Segoe UI', Arial, sans-serif; background-color: #f4f6f9; color: #333; margin: 0; padding: 20px; }
+        .container { max-width: 1550px; margin: 0 auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+        .header-area { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 15px; margin-bottom: 20px; flex-wrap: wrap; gap: 15px; }
+        h1 { color: #1a365d; margin: 0; font-size: 24px; }
+        .btn { background: #2b6cb0; color: white; border: none; padding: 10px 18px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 14px; }
+        .btn-export { background: #2f855a; }
+        .btn-sync { background: #dd6b20; }
+        .filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px; background: #edf2f7; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+        label { font-size: 12px; font-weight: bold; color: #4a5568; display: block; margin-bottom: 5px; }
+        select, input { width: 100%; padding: 8px; border: 1px solid #cbd5e0; border-radius: 4px; box-sizing: border-box; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px;}
+        th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #e2e8f0; font-size: 13px; }
+        th { background-color: #2d3748; color: white; position: sticky; top: 0; }
+        tr:hover { background-color: #f7fafc; }
+        
+        .family-tags { display: flex; gap: 5px; flex-wrap: wrap; }
+        .family-tag { font-size: 11px; padding: 3px 6px; background: #e2e8f0; border-radius: 4px; font-weight: bold; cursor: pointer; }
+        .family-tag.active { background: #2f855a; color: white; }
+        
+        #map { height: 500px; width: 100%; border-radius: 8px; border: 1px solid #cbd5e0; margin-top: 20px;}
+        #loader { display: none; color: #dd6b20; font-weight: bold; margin-left: 15px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header-area">
+        <h1>🌳 Legado de Viagens (Horizontes 2026 - 2066)</h1>
+        <div>
+            <span id="loader">🔄 Sincronizando com a Nuvem...</span>
+            <button class="btn btn-sync" onclick="loadData()">🔄 Baixar Nuvem</button>
+            <button class="btn btn-export" onclick="exportarParaGemini()">📤 Gerar Prompt IA</button>
+        </div>
+    </div>
+
+    <div style="background: #fffaf0; border-left: 4px solid #dd6b20; padding: 15px; border-radius: 6px; margin-bottom: 20px;">
+        <label>Defina os Núcleos Familiares (Pressione Enter para adicionar):</label>
+        <input type="text" id="family-input" placeholder="Ex: Pais, Familia Joao, Familia Maria" onkeypress="addFamily(event)" style="max-width: 400px;">
+        <div id="family-list" style="margin-top: 10px; display: flex; gap: 10px; flex-wrap: wrap;"></div>
+    </div>
+
+    <div class="filters">
+        <div>
+            <label>Filtrar por Região</label>
+            <select id="filter-region" onchange="renderData()"><option value="Todos">Todos</option></select>
+        </div>
+        <div>
+            <label>Exibir apenas NÃO VISITADOS por:</label>
+            <select id="filter-missing-family" onchange="renderData()">
+                <option value="Todos">Mostrar Todos os Destinos</option>
+            </select>
+        </div>
+    </div>
+
+    <div style="overflow-x: auto; max-height: 450px; border: 1px solid #e2e8f0; border-radius: 6px;">
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Destino</th>
+                    <th>Janela / Hub</th>
+                    <th>Custo</th>
+                    <th>Famílias que já visitaram (Clique para marcar)</th>
+                </tr>
+            </thead>
+            <tbody id="table-body">
+                <tr><td colspan="5" style="text-align:center;">Clique em "Baixar Nuvem" para iniciar.</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div id="map"></div>
+</div>
+
+<div id="exportModal" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); background:white; padding:25px; border-radius:10px; z-index:100; width:80%; max-width:600px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
+    <h3>🤖 Cole este texto no Chat do Gemini</h3>
+    <textarea id="exportArea" readonly style="width:100%; height:180px; font-family:monospace; font-size:12px;" onclick="this.select()"></textarea>
+    <button class="btn" style="margin-top:15px; background:#4a5568;" onclick="document.getElementById('exportModal').style.display='none'">Fechar</button>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+    // =========================================================================
+    // COLE AQUI O URL DA SUA API GERADA NO GOOGLE APPS SCRIPT (PASSO 2)
+    const API_URL = "https://script.google.com/macros/s/AKfycbwe7XJOrYL_xScxXKwbhJ6zYm5So4_zi9baFygdrHHFw7D4UCICbyivE9B2bWEIIdBt3w/exec"; 
+    // =========================================================================
+
+    let places = [];
+    let registeredFamilies = JSON.parse(localStorage.getItem('legacy_families')) || ['Pais', 'Joao', 'Maria'];
+    let map, markerLayer;
+
+    window.onload = function() {
+        initMap();
+        renderFamilyList();
+    };
+
+    function initMap() {
+        map = L.map('map').setView([-10, -35], 4);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+        markerLayer = L.layerGroup().addTo(map);
+    }
+
+    async function loadData() {
+        if(API_URL === "SUA_URL_DO_APP_DA_WEB_AQUI") { alert("Você esqueceu de colar a URL da API no código HTML!"); return; }
+        
+        document.getElementById('loader').style.display = 'inline-block';
+        try {
+            let res = await fetch(API_URL);
+            places = await res.json();
+            buildFilters();
+            renderData();
+        } catch (error) {
+            alert("Erro ao baixar dados da Nuvem.");
+        }
+        document.getElementById('loader').style.display = 'none';
+    }
+
+    function addFamily(e) {
+        if (e.key === 'Enter' && e.target.value.trim() !== '') {
+            if(!registeredFamilies.includes(e.target.value.trim())) {
+                registeredFamilies.push(e.target.value.trim());
+                localStorage.setItem('legacy_families', JSON.stringify(registeredFamilies));
+                renderFamilyList();
+                buildFilters();
+                renderData();
+            }
+            e.target.value = '';
+        }
+    }
+
+    function renderFamilyList() {
+        const div = document.getElementById('family-list');
+        div.innerHTML = registeredFamilies.map(f => `<span class="family-tag active">${f}</span>`).join('');
+    }
+
+    function buildFilters() {
+        const fRegion = document.getElementById('filter-region');
+        const regions = ['Todos', ...new Set(places.map(p => p.Regiao.split(' - ')[0]))];
+        fRegion.innerHTML = regions.map(r => `<option value="${r}">${r}</option>`).join('');
+
+        const fMissing = document.getElementById('filter-missing-family');
+        fMissing.innerHTML = '<option value="Todos">Mostrar Todos os Destinos</option>' + 
+                             registeredFamilies.map(f => `<option value="${f}">Não visitados por: ${f}</option>`).join('');
+    }
+
+    function renderData() {
+        const reg = document.getElementById('filter-region').value;
+        const missingFam = document.getElementById('filter-missing-family').value;
+        const tbody = document.getElementById('table-body');
+        markerLayer.clearLayers();
+        
+        let filtered = places;
+        if(reg !== 'Todos') filtered = filtered.filter(p => p.Regiao.startsWith(reg));
+        if(missingFam !== 'Todos') filtered = filtered.filter(p => !(p.Familias || "").includes(missingFam));
+
+        let html = '';
+        filtered.forEach(p => {
+            let visitedFamilies = (p.Familias || "").split(',').map(s => s.trim()).filter(Boolean);
+            
+            // Cria os botões para cada núcleo familiar
+            let familyButtons = registeredFamilies.map(fam => {
+                let isActive = visitedFamilies.includes(fam) ? 'active' : '';
+                return `<span class="family-tag ${isActive}" onclick="toggleFamily('${p.ID}', '${fam}')">${fam}</span>`;
+            }).join('');
+
+            html += `<tr>
+                <td><b>${p.ID}</b></td>
+                <td><b>${p.Regiao}</b><br>${p.Nome}</td>
+                <td>${p.Janela}<br><small style="color:#2b6cb0;">Hub: ${p.Hub}</small></td>
+                <td>${p.Custo}</td>
+                <td><div class="family-tags">${familyButtons}</div></td>
+            </tr>`;
+
+            // Plotando no mapa
+            if(p.Lat && p.Lng) {
+                let col = visitedFamilies.length === registeredFamilies.length ? "#2f855a" : (visitedFamilies.length > 0 ? "#dd6b20" : "#2b6cb0");
+                const marker = L.circleMarker([p.Lat, p.Lng], { radius: 7, fillColor: col, color: "#fff", weight: 1.5, fillOpacity: 0.8 });
+                marker.bindPopup(`<b>${p.Nome}</b><br>Visitado por: ${visitedFamilies.join(', ') || 'Ninguém ainda'}`);
+                markerLayer.addLayer(marker);
+            }
+        });
+        tbody.innerHTML = html;
+    }
+
+    async function toggleFamily(placeId, familyName) {
+        document.getElementById('loader').style.display = 'inline-block';
+        let place = places.find(p => p.ID === placeId);
+        let visited = (place.Familias || "").split(',').map(s => s.trim()).filter(Boolean);
+        
+        if (visited.includes(familyName)) {
+            visited = visited.filter(f => f !== familyName);
+        } else {
+            visited.push(familyName);
+        }
+        
+        let newFamiliesStr = visited.join(', ');
+        place.Familias = newFamiliesStr;
+        renderData(); // Atualiza a tela rápido
+
+        // Manda o update silencioso para a planilha do Google
+        try {
+            await fetch(API_URL, {
+                method: 'POST',
+                body: JSON.stringify({ id: placeId, familias: newFamiliesStr })
+            });
+        } catch(e) {
+            alert("Erro ao salvar na planilha!");
+        }
+        document.getElementById('loader').style.display = 'none';
+    }
+
+    function exportarParaGemini() {
+        // Gera o prompt compactado perfeitamente estruturado para a IA ler orçamentos e famílias
+        const compact = places.map(p => `${p.ID}|${p.Custo}|${p.Hub}|${p.Familias||'0'}`);
+        const promptFinal = `=== BANCO DE DADOS ATUAL - PROJETO 40 ANOS ===\nFamílias Registradas: ${registeredFamilies.join(', ')}\n\nDados (ID|Custo|Hub|Familias):\n${compact.join('\n')}\n\n=== FIM DO BANCO ===\nGemini, este é meu status atualizado. Aguardo seu OK para enviar meu desafio de viagem com os requisitos de orçamento e famílias!`;
+        
+        document.getElementById('exportArea').value = promptFinal;
+        document.getElementById('exportModal').style.display = 'block';
+    }
+</script>
+</body>
+</html>
