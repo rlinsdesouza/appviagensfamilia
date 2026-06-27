@@ -1,2 +1,2 @@
 # appViagens
-appViagens
+Um pequeno projeto familiar
