@@ -92,7 +92,7 @@
 <script>
     // =========================================================================
     // COLE AQUI O URL DA SUA API GERADA NO GOOGLE APPS SCRIPT (PASSO 2)
-    const API_URL = "https://script.google.com/macros/s/AKfycbzneZQmpsv19DbQQruvQbMvXOu41X4ZY6SoWHSjgrg5/dev"; 
+    const API_URL = "https://script.google.com/macros/s/AKfycbxJbQgrIj-84z90kIMcv2PchgWMvIFRAHJGVTGUuDa-nUJtyHEUFZaHwOz2RZC_EAGYBw/exec"; 
     // =========================================================================
 
     let places = [];
@@ -116,60 +116,59 @@
             try {
                 const jsonData = JSON.parse(e.target.result);
                 
-                // Dispara os dados para o seu Google Apps Script (Testando a segurança de edição)
+                // Conexão direta via POST
                 let response = await fetch(API_URL, {
                     method: 'POST',
+                    redirect: 'follow', // Essencial para o Google Apps Script
                     body: JSON.stringify({ action: 'bulk_import', data: jsonData })
                 });
 
                 let resData = await response.json();
                 if (resData.status === 'success') {
                     alert(resData.msg);
-                    loadData(); // Puxa os dados atualizados para a tela
+                    loadData(); // Atualiza a tela
                 } else {
                     alert("Acesso Negado ou Erro no Google.");
                 }
             } catch (err) {
-                alert("Erro: Você não tem permissão de editor na planilha ou o JSON está corrompido.");
+                console.error(err);
+                alert("Erro: Não foi possível subir os dados. O JSON pode estar corrompido.");
             }
             document.getElementById('loader').style.display = 'none';
             document.getElementById('loader').innerText = '🔄 Sincronizando...';
-            input.value = ''; // Limpa o seletor de arquivos
+            input.value = ''; 
         };
         reader.readAsText(file);
     }
-
+    
     function initMap() {
         map = L.map('map').setView([-10, -35], 4);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
         markerLayer = L.layerGroup().addTo(map);
     }
 
-    async function loadData() {
-    document.getElementById('loader').style.display = 'inline-block';
-    
-    // O 'corsproxy.io' atua como um tradutor: ele pede os dados para o Google (que confia nele)
-    // e entrega para o seu site no GitHub (que não tinha permissão original).
-    const PROXY = "https://corsproxy.io/?"; 
-    
-    try {
-        let response = await fetch(PROXY + encodeURIComponent(API_URL));
+  async function loadData() {
+        if(API_URL.includes("/dev")) { alert("Erro: Você está usando o link /dev. Pegue o link que termina com /exec no Google Apps Script!"); return; }
         
-        if (!response.ok) {
-            throw new Error('Falha na resposta da API');
+        document.getElementById('loader').style.display = 'inline-block';
+        try {
+            // Removido o Proxy. Conexão direta com o Google seguindo o redirecionamento.
+            let response = await fetch(API_URL, { 
+                method: 'GET',
+                redirect: 'follow' 
+            });
+            
+            if (!response.ok) throw new Error('Falha na rede');
+            
+            places = await response.json();
+            buildFilters();
+            renderData();
+        } catch (error) {
+            console.error(error);
+            alert("Erro ao baixar dados. Certifique-se de que o link é o /exec e a permissão está como 'Qualquer pessoa'.");
         }
-        
-        places = await response.json();
-        
-        buildFilters();
-        renderData();
-        alert("Sucesso! Base de dados sincronizada com a nuvem.");
-    } catch (error) {
-        console.error("Erro detalhado:", error);
-        alert("Erro técnico: O proxy não conseguiu intermediar a conexão. Verifique se a URL da API está correta.");
+        document.getElementById('loader').style.display = 'none';
     }
-    document.getElementById('loader').style.display = 'none';
-}
     
     function addFamily(e) {
         if (e.key === 'Enter' && e.target.value.trim() !== '') {
@@ -265,16 +264,16 @@ function updateMapMarkers() {
         
         let newFamiliesStr = visited.join(', ');
         place.Familias = newFamiliesStr;
-        renderData(); // Atualiza a tela rápido
+        renderData(); 
 
-        // Manda o update silencioso para a planilha do Google
         try {
             await fetch(API_URL, {
                 method: 'POST',
+                redirect: 'follow',
                 body: JSON.stringify({ id: placeId, familias: newFamiliesStr })
             });
         } catch(e) {
-            alert("Erro ao salvar na planilha!");
+            console.error(e);
         }
         document.getElementById('loader').style.display = 'none';
     }
