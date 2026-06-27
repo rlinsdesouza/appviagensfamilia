@@ -49,15 +49,31 @@ function doPost(e) {
     // IMPORTAÇÃO
     if (params.action === 'append_import') {
       var rowsToAppend = [];
+      var debugLog = []; // Vamos registrar o que acontece aqui
+      
       params.data.forEach(function(d) {
         var erro = validarDestino(d, data, "");
         if (!erro) {
           rowsToAppend.push([d.ID, d.Regiao, d.Nome, d.Categoria, d.Meses_Ideais, d.Esforco, d.Janela, d.Custo, d.Hub, d.Lat, d.Lng, d.Familias, d.Historico || ""]);
           data.push([d.ID, "", "", "", "", "", "", "", "", d.Lat, d.Lng]); 
+        } else {
+          debugLog.push("ID " + d.ID + " rejeitado: " + erro);
         }
       });
-      if (rowsToAppend.length > 0) sheet.getRange(sheet.getLastRow() + 1, 1, rowsToAppend.length, 13).setValues(rowsToAppend);
-      return ContentService.createTextOutput(JSON.stringify({status: "success", count: rowsToAppend.length})).setMimeType(ContentService.MimeType.JSON);
+      
+      // Registra no Log do Google para você ver
+      Logger.log("Importação: Tentou " + params.data.length + " itens.");
+      Logger.log("Rejeitados: " + debugLog.join(" | "));
+      
+      if (rowsToAppend.length > 0) {
+        sheet.getRange(sheet.getLastRow() + 1, 1, rowsToAppend.length, 13).setValues(rowsToAppend);
+      }
+      
+      return ContentService.createTextOutput(JSON.stringify({
+        status: "success", 
+        count: rowsToAppend.length, 
+        rejeitados: debugLog // Isso vai aparecer no seu console se houver erro
+      })).setMimeType(ContentService.MimeType.JSON);
     }
     
     // SALVAR

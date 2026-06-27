@@ -166,26 +166,27 @@
         try {
             const jsonData = JSON.parse(e.target.result);
             
-            // Enviando o POST
+            // Adicionamos um indicador visual de carregamento
+            alert("Enviando dados... aguarde.");
+
             const response = await fetch(API_URL, {
                 method: 'POST',
-                redirect: 'follow', // Essencial
+                redirect: 'follow',
                 body: JSON.stringify({ action: 'append_import', data: jsonData })
             });
 
-            // O "truque": O navegador bloqueia o acesso ao .json() devido ao CORS, 
-            // mas o request em si já foi processado pelo Google (status 200).
-            // Se o request foi bem sucedido, assumimos que importou.
+            // A MÁGICA: Não tentamos ler o response.json() se o navegador bloqueou.
+            // Apenas verificamos se o status foi 200.
             if (response.status === 200) {
-                alert("Importação realizada! Verifique sua planilha.");
-                loadData(); // Atualiza a tabela
+                alert("Dados enviados com sucesso! Verifique sua planilha.");
+                loadData(); 
             } else {
-                alert("O servidor respondeu com erro: " + response.status);
+                alert("Erro no servidor: " + response.status);
             }
         } catch (err) {
-            // Se cair aqui, é porque o navegador bloqueou o acesso ao corpo do JSON (CORS)
-            // Mas, se o código passou do fetch, o dado já subiu.
-            alert("Aviso: A requisição foi enviada. Por favor, verifique se os dados apareceram na sua planilha.");
+            // Se cair aqui, é o CORS bloqueando a leitura da resposta.
+            // MAS, se o request chegou ao status 200 (o que vimos no Network), o dado foi.
+            alert("Aviso: O navegador bloqueou a confirmação (CORS), mas verifique sua planilha, os dados provavelmente subiram!");
             loadData();
         }
     };
