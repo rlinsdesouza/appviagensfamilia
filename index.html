@@ -192,26 +192,28 @@
     }
 
     // A FUNÇÃO BLINDADA QUE ESTAVA FALTANDO
-    function updateMapMarkers() {
-        if(!markerLayer) return;
-        markerLayer.clearLayers();
-        
-        places.forEach(p => {
-            let lat = parseFloat(p.Lat);
-            let lng = parseFloat(p.Lng);
+    // Adicione esta lógica no seu HTML para o Mapa (substitua sua antiga updateMapMarkers)
+function updateMapMarkers() {
+    if(!markerLayer) return;
+    markerLayer.clearLayers();
+    
+    places.forEach(p => {
+        let lat = parseFloat(p.Lat);
+        let lng = parseFloat(p.Lng);
+        if (!isNaN(lat) && lat !== 0) {
+            let visited = (p.Familias || "").split(',').map(s => s.trim()).filter(Boolean);
+            let totalFamilies = registeredFamilies.length;
             
-            // Validação estrita: só plota se for número real e dentro do mapa
-            if (!isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0) {
-                let visitedFamilies = (p.Familias || "").split(',').map(s => s.trim()).filter(Boolean);
-                let col = visitedFamilies.length === registeredFamilies.length ? "#2f855a" : (visitedFamilies.length > 0 ? "#dd6b20" : "#2b6cb0");
-                
-                const marker = L.circleMarker([lat, lng], { radius: 7, fillColor: col, color: "#fff", weight: 1.5, fillOpacity: 0.8 });
-                marker.bindPopup(`<b>${p.Nome}</b><br>Visitado por: ${visitedFamilies.join(', ') || 'Ninguém ainda'}`);
-                markerLayer.addLayer(marker);
-            }
-        });
-    }
-
+            // Lógica de cores: Azul (0), Laranja (parcial), Verde (todos)
+            let col = visited.length === 0 ? "#2b6cb0" : 
+                      (visited.length === totalFamilies ? "#2f855a" : "#dd6b20");
+            
+            const marker = L.circleMarker([lat, lng], { radius: 7, fillColor: col, color: "#fff", weight: 1.5 });
+            marker.bindPopup(`<b>${p.Nome}</b><br>Visitado por: ${visited.join(', ') || 'Ninguém'}`);
+            markerLayer.addLayer(marker);
+        }
+    });
+}
 
     async function toggleFamily(placeId, familyName) {
         document.getElementById('loader').style.display = 'inline-block';
