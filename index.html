@@ -157,28 +157,37 @@
         document.getElementById('loader').style.display = 'none';
     }
 
-    async function uploadJSONBase(input) {
-    const file = input.files[0];
+    async function uploadJSON(input) {
+    let file = input.files[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = async function(e) {
+    let reader = new FileReader();
+    reader.onload = async (e) => {
         try {
-            const jsonData = JSON.parse(e.target.result);
-            // Aqui está a chave: action deve ser 'bulk_import'
+            let data = JSON.parse(e.target.result);
+            
+            // Opcional: mostrar algo carregando na tela
+            if(document.getElementById('loader')) document.getElementById('loader').style.display = 'inline-block';
+            
             let response = await fetch(API_URL, {
                 method: 'POST',
-                redirect: 'follow',
-                body: JSON.stringify({ action: 'bulk_import', data: jsonData })
+                redirect: 'follow', // OBRIGATÓRIO PARA O GOOGLE APPS SCRIPT
+                body: JSON.stringify({ action: 'append_import', data: data })
             });
-
-            let res = await response.json();
-            if (res.status === 'success') {
-                alert("Base importada com sucesso!");
-                loadData();
+            
+            let result = await response.json();
+            
+            if (result.status === "success") {
+                alert(`Importação concluída! ${result.appended} novos destinos foram adicionados (IDs duplicados foram ignorados).`);
+                loadData(); // Recarrega a tabela e o mapa
+            } else {
+                alert("Erro na importação: " + result.msg);
             }
         } catch (err) {
-            alert("Erro ao importar JSON: " + err);
+            alert("Erro ao ler ou enviar o arquivo JSON: " + err);
+        } finally {
+            if(document.getElementById('loader')) document.getElementById('loader').style.display = 'none';
+            input.value = ""; // Limpa o input do arquivo para permitir subir o mesmo arquivo de novo se quiser
         }
     };
     reader.readAsText(file);

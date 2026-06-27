@@ -1,11 +1,27 @@
-// 1. Função de cálculo de distância (Haversine)
 function getDistancia(lat1, lon1, lat2, lon2) {
-  var R = 6371000; // Raio da Terra em metros
+  var R = 6371000;
   var dLat = (lat2 - lat1) * Math.PI / 180;
   var dLon = (lon2 - lon1) * Math.PI / 180;
-  var a = Math.sin(dLat/2) * Math.sin(dLat/2) + 
-          Math.cos(lat1 * Math.PI/180) * Math.cos(lat2 * Math.PI/180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+  var a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI/180) * Math.cos(lat2 * Math.PI/180) * Math.sin(dLon/2) * Math.sin(dLon/2);
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function validarDestino(novoP, dataExistente, idAtual) {
+  for (var i = 1; i < dataExistente.length; i++) {
+    var idExistente = dataExistente[i][0].toString();
+    var latExistente = dataExistente[i][9];
+    var lngExistente = dataExistente[i][10];
+    
+    // Checa ID (ignora se for o próprio ID sendo editado)
+    if (idExistente == novoP.ID.toString() && idExistente != idAtual) return "ID duplicado!";
+    
+    // Checa Proximidade (ignora se for o mesmo ID)
+    if (idExistente != novoP.ID.toString()) {
+      var dist = getDistancia(novoP.Lat, novoP.Lng, latExistente, lngExistente);
+      if (dist < 200) return "Local duplicado! Já existe um destino a menos de 200m.";
+    }
+  }
+  return null; // Nenhuma duplicata
 }
 
 function doGet() {
@@ -28,78 +44,38 @@ function doPost(e) {
   var params = JSON.parse(e.postData.contents);
   var data = sheet.getDataRange().getValues();
   
-  // --- BLOCO DE IMPORTAÇÃO (13 COLUNAS) ---
-  if (params.action === 'bulk_import') {
-    var dataToImport = params.data;
-    
-    // 1. Limpa a planilha - Agora configurado para 13 colunas
-    if (sheet.getLastRow() > 1) {
-      sheet.getRange(2, 1, sheet.getLastRow() - 1, 13).clearContent();
-    }
-    
-    // 2. Prepara as linhas (Adiciona uma string vazia "" no final para o Histórico, 
-    // já que o arquivo base.json só tem 12 itens)
-    var rows = dataToImport.map(d => [d.ID, d.Regiao, d.Nome, d.Categoria, d.Meses_Ideais, d.Esforco, d.Janela, d.Custo, d.Hub, d.Lat, d.Lng, d.Familias, ""]);
-    
-    // 3. Salva na planilha - Escreve as 13 colunas
-    if (rows.length > 0) {
-      sheet.getRange(2, 1, rows.length, 13).setValues(rows);
-    }
-    
-    return ContentService.createTextOutput(JSON.stringify({status: "success"}))
-      .setMimeType(ContentService.MimeType.JSON);
+  // AÇÃO: IMPORTAÇÃO SEGURA (APPEND)
+  if (params.action === 'append_import') {
+    var rowsToAppend = [];
+    params.data.forEach(function(d) {
+      var erro = validarDestino(d, data, "");
+      if (!erro) {
+        rowsToAppend.push([d.ID, d.Regiao, d.Nome, d.Categoria, d.Meses_Ideais, d.Esforco, d.Janela, d.Custo, d.Hub, d.Lat, d.Lng, d.Familias, d.Historico || ""]);
+        // Adiciona temporariamente aos dados para validar duplicatas dentro do próprio lote
+        data.push([d.ID, "", "", "", "", "", "", "", "", d.Lat, d.Lng]); 
+      }
+    });
+    if (rowsToAppend.length > 0) sheet.getRange(sheet.getLastRow() + 1, 1, rowsToAppend.length, 13).setValues(rowsToAppend);
+    return ContentService.createTextOutput(JSON.stringify({status: "success", count: rowsToAppend.length})).setMimeType(ContentService.MimeType.JSON);
   }
-  // --- FIM DO BLOCO DE IMPORTAÇÃO --
   
+  
+// AÇÃO: SALVAR/EDITAR
   if (params.action === 'save_row') {
     var p = params.data;
+    var erro = validarDestino(p, data, p.ID);
+    if (erro) return ContentService.createTextOutput(JSON.stringify({status: "error", msg: erro})).setMimeType(ContentService.MimeType.JSON);
+    
     var found = false;
-	var isNew = true; // Assumimos que é novo
-	
-	// Validação de segurança: ID não pode ser vazio
-if (!p.ID || p.ID.toString().trim() === "") {
-    return ContentService.createTextOutput(JSON.stringify({status: "error", msg: "O ID é obrigatório!"})).setMimeType(ContentService.MimeType.JSON);
-}
-	
-	// Verifica se ID já existe
-for (var i = 1; i < data.length; i++) {
-    if (data[i][0].toString() == p.ID.toString()) {
-        // Se encontramos o ID, não é novo, é uma edição
-        isNew = false; 
-        break;
-    }
-}
-
-// Se tentou criar um ID que já existe (e não é uma edição), bloqueia
-if (isNew && data.some(row => row[0].toString() == p.ID.toString())) {
-    return ContentService.createTextOutput(JSON.stringify({status: "error", msg: "ID já cadastrado!"})).setMimeType(ContentService.MimeType.JSON);
-}
-	
-	// Check de Integridade: Verifica se existe outro lugar num raio de 200m
     for (var i = 1; i < data.length; i++) {
-        // Pula a checagem se for o mesmo ID (estamos editando, não criando)
-        if (data[i][0].toString() == p.ID.toString()) continue; 
-        
-        var dist = getDistancia(p.Lat, p.Lng, data[i][9], data[i][10]); // lat=col 10, lng=col 11
-        if (dist < 200) {
-            return ContentService.createTextOutput(JSON.stringify({status: "error", msg: "Local já cadastrado a menos de 200m!"})).setMimeType(ContentService.MimeType.JSON);
-        }
-    }
-	
-    for (var i = 1; i < data.length; i++) {
-      if (data[i][0] == p.ID) {
-        sheet.getRange(i + 1, 1, 1, 13).setValues([[
-    p.ID, p.Regiao, p.Nome, p.Categoria, p.Meses_Ideais, 
-    p.Esforco, p.Janela, p.Custo, p.Hub, p.Lat, 
-    p.Lng, p.Familias, p.Historico]]);
+      if (data[i][0].toString() == p.ID.toString()) {
+        sheet.getRange(i + 1, 1, 1, 13).setValues([[p.ID, p.Regiao, p.Nome, p.Categoria, p.Meses_Ideais, p.Esforco, p.Janela, p.Custo, p.Hub, p.Lat, p.Lng, p.Familias, p.Historico]]);
         found = true; break;
       }
     }
-    if (!found) sheet.appendRow([p.ID, p.Regiao, p.Nome, p.Categoria, p.Meses_Ideais, p.Esforco, p.Janela, p.Custo, p.Hub, p.Lat, p.Lng, p.Familias]);
-  } else if (params.action === 'delete_row') {
-    for (var i = 1; i < data.length; i++) {
-      if (data[i][0] == params.id) { sheet.deleteRow(i + 1); break; }
-    }
+    if (!found) sheet.appendRow([p.ID, p.Regiao, p.Nome, p.Categoria, p.Meses_Ideais, p.Esforco, p.Janela, p.Custo, p.Hub, p.Lat, p.Lng, p.Familias, p.Historico]);
+    return ContentService.createTextOutput(JSON.stringify({status: "success"})).setMimeType(ContentService.MimeType.JSON);
   }
-  return ContentService.createTextOutput(JSON.stringify({status: "success"})).setMimeType(ContentService.MimeType.JSON);
+  
+  return ContentService.createTextOutput(JSON.stringify({status: "error", msg: "Ação inválida"})).setMimeType(ContentService.MimeType.JSON);
 }
