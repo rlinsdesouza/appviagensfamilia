@@ -121,41 +121,48 @@
     }
 
     async function loadData() {
-        if(API_URL.includes("/dev") { 
-            alert("Por favor, cole a URL de produção (/exec) do Google Apps Script na variável API_URL do HTML!"); 
-            return; 
-        }
-        
-        document.getElementById('loader').style.display = 'inline-block';
-        try {
-            let response = await fetch(API_URL, { method: 'GET', redirect: 'follow' });
-            if (!response.ok) throw new Error('Falha na rede');
-            
-            places = await response.json();
-            
-            // Leitura Dinâmica de Famílias (Ajuste #4)
-            // Varre o banco de dados e adiciona qualquer família nova que encontrar
-            let familiesFromDB = new Set(registeredFamilies);
-            places.forEach(p => {
-                if (p.Familias) {
-                    p.Familias.split(',').forEach(f => {
-                        let fam = f.trim();
-                        if(fam) familiesFromDB.add(fam);
-                    });
-                }
-            });
-            registeredFamilies = Array.from(familiesFromDB);
-            localStorage.setItem('legacy_families', JSON.stringify(registeredFamilies));
-            renderFamilyList();
-
-            buildFilters();
-            renderData();
-        } catch (error) {
-            console.error(error);
-            alert("Erro ao baixar dados da Nuvem. Verifique o link e a conexão.");
-        }
-        document.getElementById('loader').style.display = 'none';
+    // 1. Corrigido: Adicionado o parêntese de fechamento ")" antes da chave
+    if (API_URL.includes("/dev")) { 
+        alert("Por favor, cole a URL de produção (/exec) do Google Apps Script na variável API_URL do HTML!"); 
+        return; 
     }
+    
+    document.getElementById('loader').style.display = 'inline-block';
+    
+    try {
+        let response = await fetch(API_URL, { method: 'GET', redirect: 'follow' });
+        
+        if (!response.ok) throw new Error('Falha na rede');
+        
+        // Certifique-se de que 'places' está declarado como variável global ou let antes disso
+        places = await response.json();
+        
+        // Leitura Dinâmica de Famílias
+        let familiesFromDB = new Set(registeredFamilies);
+        places.forEach(p => {
+            if (p.Familias) {
+                p.Familias.split(',').forEach(f => {
+                    let fam = f.trim();
+                    if(fam) familiesFromDB.add(fam);
+                });
+            }
+        });
+        
+        registeredFamilies = Array.from(familiesFromDB);
+        localStorage.setItem('legacy_families', JSON.stringify(registeredFamilies));
+        
+        // Funções de renderização
+        renderFamilyList();
+        buildFilters();
+        renderData();
+
+    } catch (error) {
+        console.error(error);
+        alert("Erro ao baixar dados da Nuvem. Verifique o link e a conexão.");
+    }
+    
+    document.getElementById('loader').style.display = 'none';
+}
 
     async function uploadJSONBase(input) {
     const file = input.files[0];
