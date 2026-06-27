@@ -28,19 +28,24 @@ function doPost(e) {
   var params = JSON.parse(e.postData.contents);
   var data = sheet.getDataRange().getValues();
   
-  // --- ADICIONE ESTE BLOCO AQUI ---
+  // --- BLOCO DE IMPORTAÇÃO (13 COLUNAS) ---
   if (params.action === 'bulk_import') {
     var dataToImport = params.data;
-    // Limpa a planilha (do cabeçalho para baixo)
+    
+    // 1. Limpa a planilha - Agora configurado para 13 colunas
     if (sheet.getLastRow() > 1) {
-      sheet.getRange(2, 1, sheet.getLastRow() - 1, 12).clearContent();
+      sheet.getRange(2, 1, sheet.getLastRow() - 1, 13).clearContent();
     }
-    // Prepara as linhas
-    var rows = dataToImport.map(d => [d.ID, d.Regiao, d.Nome, d.Categoria, d.Meses_Ideais, d.Esforco, d.Janela, d.Custo, d.Hub, d.Lat, d.Lng, d.Familias]);
-    // Salva na planilha
+    
+    // 2. Prepara as linhas (Adiciona uma string vazia "" no final para o Histórico, 
+    // já que o arquivo base.json só tem 12 itens)
+    var rows = dataToImport.map(d => [d.ID, d.Regiao, d.Nome, d.Categoria, d.Meses_Ideais, d.Esforco, d.Janela, d.Custo, d.Hub, d.Lat, d.Lng, d.Familias, ""]);
+    
+    // 3. Salva na planilha - Escreve as 13 colunas
     if (rows.length > 0) {
-      sheet.getRange(2, 1, rows.length, 12).setValues(rows);
+      sheet.getRange(2, 1, rows.length, 13).setValues(rows);
     }
+    
     return ContentService.createTextOutput(JSON.stringify({status: "success"}))
       .setMimeType(ContentService.MimeType.JSON);
   }

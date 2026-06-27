@@ -547,18 +547,27 @@ async function registrarVisita(id) {
     loadData(); // Atualiza a tabela
 }
 
-// 3. Atualização no Modal (Salvar novo ou editar existente)
 async function salvarDestino() {
+    // Agora o Javascript lê os mesmos IDs do HTML!
     let p = {
-        ID: document.getElementById('m-id').value,
-        Nome: document.getElementById('m-nome').value,
-        Regiao: document.getElementById('m-regiao').value,
-        Lat: document.getElementById('m-lat').value,
-        Lng: document.getElementById('m-lng').value,
-        Historico: document.getElementById('m-historico') ? document.getElementById('m-historico').value : ""
+        ID: document.getElementById('modal-id').value,
+        Nome: document.getElementById('modal-nome').value,
+        Regiao: document.getElementById('modal-regiao').value,
+        Lat: document.getElementById('modal-lat').value,
+        Lng: document.getElementById('modal-lng').value,
+        Historico: document.getElementById('modal-historico') ? document.getElementById('modal-historico').value : ""
     };
-    await salvarDestinoNoBackend(p);
+    
+    document.getElementById('loader').style.display = 'inline-block';
+    
+    await fetch(API_URL, {
+        method: 'POST',
+        redirect: 'follow',
+        body: JSON.stringify({ action: 'save_row', data: p })
+    });
+    
     document.getElementById('modalDestino').style.display = 'none';
+    alert("Destino salvo com sucesso!");
     loadData();
 }
 
@@ -580,8 +589,9 @@ async function salvarDestinoNoBackend(p) {
     <label>Região:</label><input type="text" id="modal-regiao">
     <label>Latitude:</label><input type="text" id="modal-lat">
     <label>Longitude:</label><input type="text" id="modal-lng">
-	<label>Histórico de Visitas:</label>
-<textarea id="m-historico" style="width:100%; height:60px;" placeholder="Ex: Familia Silva:27/06/2026"></textarea><br>	
+    <label>Histórico de Visitas:</label>
+    <textarea id="modal-historico" style="width:100%; height:60px;" placeholder="Ex: Familia Silva:27/06/2026"></textarea>
+    
     <div style="margin-top:15px; display: flex; gap: 10px;">
         <button class="btn" style="background:#2f855a" onclick="salvarDestino()">Salvar</button>
         <button class="btn" style="background:#718096" onclick="document.getElementById('modalDestino').style.display='none'">Cancelar</button>
