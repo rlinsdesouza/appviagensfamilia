@@ -166,7 +166,6 @@
         const reg = document.getElementById('filter-region').value;
         const missingFam = document.getElementById('filter-missing-family').value;
         const tbody = document.getElementById('table-body');
-        markerLayer.clearLayers();
         
         let filtered = places;
         if(reg !== 'Todos') filtered = filtered.filter(p => p.Regiao.startsWith(reg));
@@ -175,8 +174,6 @@
         let html = '';
         filtered.forEach(p => {
             let visitedFamilies = (p.Familias || "").split(',').map(s => s.trim()).filter(Boolean);
-            
-            // Cria os botões para cada núcleo familiar
             let familyButtons = registeredFamilies.map(fam => {
                 let isActive = visitedFamilies.includes(fam) ? 'active' : '';
                 return `<span class="family-tag ${isActive}" onclick="toggleFamily('${p.ID}', '${fam}')">${fam}</span>`;
@@ -189,17 +186,32 @@
                 <td>${p.Custo}</td>
                 <td><div class="family-tags">${familyButtons}</div></td>
             </tr>`;
+        });
+        tbody.innerHTML = html;
+        updateMapMarkers(); // Chamada da função corrigida abaixo
+    }
 
-            // Plotando no mapa
-            if(p.Lat && p.Lng) {
+    // A FUNÇÃO BLINDADA QUE ESTAVA FALTANDO
+    function updateMapMarkers() {
+        if(!markerLayer) return;
+        markerLayer.clearLayers();
+        
+        places.forEach(p => {
+            let lat = parseFloat(p.Lat);
+            let lng = parseFloat(p.Lng);
+            
+            // Validação estrita: só plota se for número real e dentro do mapa
+            if (!isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0) {
+                let visitedFamilies = (p.Familias || "").split(',').map(s => s.trim()).filter(Boolean);
                 let col = visitedFamilies.length === registeredFamilies.length ? "#2f855a" : (visitedFamilies.length > 0 ? "#dd6b20" : "#2b6cb0");
-                const marker = L.circleMarker([p.Lat, p.Lng], { radius: 7, fillColor: col, color: "#fff", weight: 1.5, fillOpacity: 0.8 });
+                
+                const marker = L.circleMarker([lat, lng], { radius: 7, fillColor: col, color: "#fff", weight: 1.5, fillOpacity: 0.8 });
                 marker.bindPopup(`<b>${p.Nome}</b><br>Visitado por: ${visitedFamilies.join(', ') || 'Ninguém ainda'}`);
                 markerLayer.addLayer(marker);
             }
         });
-        tbody.innerHTML = html;
     }
+
 
     async function toggleFamily(placeId, familyName) {
         document.getElementById('loader').style.display = 'inline-block';
