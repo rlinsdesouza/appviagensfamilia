@@ -118,7 +118,7 @@
     }
 
     async function loadData() {
-        if(API_URL === "https://script.google.com/macros/s/AKfycby7zHWal6v5n_0M6GNECkpuHT5vkvSxXYhpXkuDv0MsPGhK2JyskRlWISiuXP7wlMm-hg/exec" || API_URL.includes("/dev")) { 
+        if(API_URL === "https://script.google.com/macros/s/AKfycbxFfDAYafPD2iS7dcw8QUM7WuTJ2aHq-hN5C2ji6JZ_Bm0T4iPqD_w_qf_4oehR1K5jaQ/exec" || API_URL.includes("/dev")) { 
             alert("Por favor, cole a URL de produção (/exec) do Google Apps Script na variável API_URL do HTML!"); 
             return; 
         }
@@ -155,39 +155,31 @@
     }
 
     async function uploadJSONBase(input) {
-        const file = input.files[0];
-        if (!file) return;
+    const file = input.files[0];
+    if (!file) return;
 
-        document.getElementById('loader').style.display = 'inline-block';
-        document.getElementById('loader').innerText = '🚀 Subindo para a Planilha...';
+    const reader = new FileReader();
+    reader.onload = async function(e) {
+        try {
+            const jsonData = JSON.parse(e.target.result);
+            // Aqui está a chave: action deve ser 'bulk_import'
+            let response = await fetch(API_URL, {
+                method: 'POST',
+                redirect: 'follow',
+                body: JSON.stringify({ action: 'bulk_import', data: jsonData })
+            });
 
-        const reader = new FileReader();
-        reader.onload = async function(e) {
-            try {
-                const jsonData = JSON.parse(e.target.result);
-                let response = await fetch(API_URL, {
-                    method: 'POST',
-                    redirect: 'follow', 
-                    body: JSON.stringify({ action: 'bulk_import', data: jsonData })
-                });
-
-                let resData = await response.json();
-                if (resData.status === 'success') {
-                    alert(resData.msg);
-                    loadData(); 
-                } else {
-                    alert("Acesso Negado ou Erro no Google.");
-                }
-            } catch (err) {
-                console.error(err);
-                alert("Erro: Não foi possível subir os dados. O JSON pode estar corrompido.");
+            let res = await response.json();
+            if (res.status === 'success') {
+                alert("Base importada com sucesso!");
+                loadData();
             }
-            document.getElementById('loader').style.display = 'none';
-            document.getElementById('loader').innerText = '🔄 Sincronizando...';
-            input.value = ''; 
-        };
-        reader.readAsText(file);
-    }
+        } catch (err) {
+            alert("Erro ao importar JSON: " + err);
+        }
+    };
+    reader.readAsText(file);
+}
 
     function addFamily(e) {
         if (e.key === 'Enter' && e.target.value.trim() !== '') {

@@ -18,6 +18,24 @@ function doPost(e) {
   var params = JSON.parse(e.postData.contents);
   var data = sheet.getDataRange().getValues();
   
+  // --- ADICIONE ESTE BLOCO AQUI ---
+  if (params.action === 'bulk_import') {
+    var dataToImport = params.data;
+    // Limpa a planilha (do cabeçalho para baixo)
+    if (sheet.getLastRow() > 1) {
+      sheet.getRange(2, 1, sheet.getLastRow() - 1, 12).clearContent();
+    }
+    // Prepara as linhas
+    var rows = dataToImport.map(d => [d.ID, d.Regiao, d.Nome, d.Categoria, d.Meses_Ideais, d.Esforco, d.Janela, d.Custo, d.Hub, d.Lat, d.Lng, d.Familias]);
+    // Salva na planilha
+    if (rows.length > 0) {
+      sheet.getRange(2, 1, rows.length, 12).setValues(rows);
+    }
+    return ContentService.createTextOutput(JSON.stringify({status: "success"}))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+  // --- FIM DO BLOCO DE IMPORTAÇÃO --
+  
   if (params.action === 'save_row') {
     var p = params.data;
     var found = false;
