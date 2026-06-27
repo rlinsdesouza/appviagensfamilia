@@ -111,12 +111,12 @@
     async function loadData() {
     document.getElementById('loader').style.display = 'inline-block';
     
-    // Usamos um Proxy público para contornar o bloqueio do Google contra o GitHub
-    const PROXY_URL = "https://corsproxy.io/?"; 
+    // O 'corsproxy.io' atua como um tradutor: ele pede os dados para o Google (que confia nele)
+    // e entrega para o seu site no GitHub (que não tinha permissão original).
+    const PROXY = "https://corsproxy.io/?"; 
     
     try {
-        // Concatenamos o proxy com a sua URL da API
-        let response = await fetch(PROXY_URL + encodeURIComponent(API_URL));
+        let response = await fetch(PROXY + encodeURIComponent(API_URL));
         
         if (!response.ok) {
             throw new Error('Falha na resposta da API');
@@ -124,21 +124,16 @@
         
         places = await response.json();
         
-        // Verifica se o JSON veio no formato esperado
-        if (!Array.isArray(places)) {
-            console.error("Dados recebidos não são um array:", places);
-            alert("Erro: Os dados na planilha não estão no formato correto. Verifique se o cabeçalho está correto.");
-            return;
-        }
-
         buildFilters();
         renderData();
+        alert("Sucesso! Base de dados sincronizada com a nuvem.");
     } catch (error) {
         console.error("Erro detalhado:", error);
-        alert("Erro crítico: Verifique o console do navegador (F12) para ver o erro técnico.");
+        alert("Erro técnico: O proxy não conseguiu intermediar a conexão. Verifique se a URL da API está correta.");
     }
     document.getElementById('loader').style.display = 'none';
 }
+    
     function addFamily(e) {
         if (e.key === 'Enter' && e.target.value.trim() !== '') {
             if(!registeredFamilies.includes(e.target.value.trim())) {
