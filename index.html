@@ -22,10 +22,10 @@
         tr:hover { background-color: #f7fafc; }
         
         .family-tags { display: flex; gap: 5px; flex-wrap: wrap; }
-        .family-tag { font-size: 11px; padding: 3px 6px; background: #e2e8f0; border-radius: 4px; font-weight: bold; cursor: pointer; }
-        .family-tag.active { background: #2f855a; color: white; }
+        .family-tag { font-size: 11px; padding: 3px 6px; background: #e2e8f0; border-radius: 4px; font-weight: bold; cursor: pointer; border: 1px solid #cbd5e0; }
+        .family-tag.active { background: #2f855a; color: white; border-color: #22543d; }
         
-        #map { height: 500px; width: 100%; border-radius: 8px; border: 1px solid #cbd5e0; margin-top: 20px;}
+        #map { height: 550px; width: 100%; border-radius: 8px; border: 1px solid #cbd5e0; margin-top: 20px;}
         #loader { display: none; color: #dd6b20; font-weight: bold; margin-left: 15px; }
     </style>
 </head>
@@ -35,17 +35,17 @@
     <div class="header-area">
         <h1>🌳 Legado de Viagens (Horizontes 2026 - 2066)</h1>
         <div>
-            <span id="loader">🔄 Sincronizando...</span>
+            <span id="loader">🔄 Sincronizando com a Nuvem...</span>
             <input type="file" id="json-loader" accept=".json" style="display:none" onchange="uploadJSONBase(this)">
             <button class="btn" style="background: #d69e2e;" onclick="document.getElementById('json-loader').click()">📥 Fazer Upload da Base (JSON)</button>
-            <button class="btn btn-sync" onclick="loadData()">🔄 Baixar Nuvem</button>
+            <button class="btn btn-sync" onclick="loadData()">🔄 Forçar Atualização</button>
             <button class="btn btn-export" onclick="exportarParaGemini()">📤 Gerar Prompt IA</button>
         </div>
     </div>
 
     <div style="background: #fffaf0; border-left: 4px solid #dd6b20; padding: 15px; border-radius: 6px; margin-bottom: 20px;">
         <label>Defina os Núcleos Familiares (Pressione Enter para adicionar):</label>
-        <input type="text" id="family-input" placeholder="Ex: Pais, Familia Joao, Familia Maria" onkeypress="addFamily(event)" style="max-width: 400px;">
+        <input type="text" id="family-input" placeholder="Ex: Familia Pais, Familia Joao" onkeypress="addFamily(event)" style="max-width: 400px;">
         <div id="family-list" style="margin-top: 10px; display: flex; gap: 10px; flex-wrap: wrap;"></div>
     </div>
 
@@ -74,7 +74,7 @@
                 </tr>
             </thead>
             <tbody id="table-body">
-                <tr><td colspan="5" style="text-align:center;">Clique em "Baixar Nuvem" para iniciar.</td></tr>
+                <tr><td colspan="5" style="text-align:center;">Carregando dados da nuvem...</td></tr>
             </tbody>
         </table>
     </div>
@@ -91,18 +91,63 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
     // =========================================================================
-    // COLE AQUI O URL DA SUA API GERADA NO GOOGLE APPS SCRIPT (PASSO 2)
-    const API_URL = "https://script.google.com/macros/s/AKfycbxJbQgrIj-84z90kIMcv2PchgWMvIFRAHJGVTGUuDa-nUJtyHEUFZaHwOz2RZC_EAGYBw/exec"; 
+    // COLE AQUI O SEU LINK DA API (O que termina com /exec)
+    const API_URL = "SUA_URL_DO_APP_DA_WEB_AQUI"; 
     // =========================================================================
 
     let places = [];
     let registeredFamilies = JSON.parse(localStorage.getItem('legacy_families')) || ['Pais', 'Joao', 'Maria'];
     let map, markerLayer;
 
+    // AUTO-CARREGAMENTO (Ajuste #2)
     window.onload = function() {
         initMap();
         renderFamilyList();
+        loadData(); // Inicia o download da nuvem assim que o site abre
     };
+
+    function initMap() {
+        map = L.map('map').setView([-10, -35], 4);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+        markerLayer = L.layerGroup().addTo(map);
+    }
+
+    async function loadData() {
+        if(API_URL === "SUA_URL_DO_APP_DA_WEB_AQUI" || API_URL.includes("/dev")) { 
+            alert("Por favor, cole a URL de produção (/exec) do Google Apps Script na variável API_URL do HTML!"); 
+            return; 
+        }
+        
+        document.getElementById('loader').style.display = 'inline-block';
+        try {
+            let response = await fetch(API_URL, { method: 'GET', redirect: 'follow' });
+            if (!response.ok) throw new Error('Falha na rede');
+            
+            places = await response.json();
+            
+            // Leitura Dinâmica de Famílias (Ajuste #4)
+            // Varre o banco de dados e adiciona qualquer família nova que encontrar
+            let familiesFromDB = new Set(registeredFamilies);
+            places.forEach(p => {
+                if (p.Familias) {
+                    p.Familias.split(',').forEach(f => {
+                        let fam = f.trim();
+                        if(fam) familiesFromDB.add(fam);
+                    });
+                }
+            });
+            registeredFamilies = Array.from(familiesFromDB);
+            localStorage.setItem('legacy_families', JSON.stringify(registeredFamilies));
+            renderFamilyList();
+
+            buildFilters();
+            renderData();
+        } catch (error) {
+            console.error(error);
+            alert("Erro ao baixar dados da Nuvem. Verifique o link e a conexão.");
+        }
+        document.getElementById('loader').style.display = 'none';
+    }
 
     async function uploadJSONBase(input) {
         const file = input.files[0];
@@ -115,18 +160,16 @@
         reader.onload = async function(e) {
             try {
                 const jsonData = JSON.parse(e.target.result);
-                
-                // Conexão direta via POST
                 let response = await fetch(API_URL, {
                     method: 'POST',
-                    redirect: 'follow', // Essencial para o Google Apps Script
+                    redirect: 'follow', 
                     body: JSON.stringify({ action: 'bulk_import', data: jsonData })
                 });
 
                 let resData = await response.json();
                 if (resData.status === 'success') {
                     alert(resData.msg);
-                    loadData(); // Atualiza a tela
+                    loadData(); 
                 } else {
                     alert("Acesso Negado ou Erro no Google.");
                 }
@@ -140,40 +183,12 @@
         };
         reader.readAsText(file);
     }
-    
-    function initMap() {
-        map = L.map('map').setView([-10, -35], 4);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-        markerLayer = L.layerGroup().addTo(map);
-    }
 
-  async function loadData() {
-        if(API_URL.includes("/dev")) { alert("Erro: Você está usando o link /dev. Pegue o link que termina com /exec no Google Apps Script!"); return; }
-        
-        document.getElementById('loader').style.display = 'inline-block';
-        try {
-            // Removido o Proxy. Conexão direta com o Google seguindo o redirecionamento.
-            let response = await fetch(API_URL, { 
-                method: 'GET',
-                redirect: 'follow' 
-            });
-            
-            if (!response.ok) throw new Error('Falha na rede');
-            
-            places = await response.json();
-            buildFilters();
-            renderData();
-        } catch (error) {
-            console.error(error);
-            alert("Erro ao baixar dados. Certifique-se de que o link é o /exec e a permissão está como 'Qualquer pessoa'.");
-        }
-        document.getElementById('loader').style.display = 'none';
-    }
-    
     function addFamily(e) {
         if (e.key === 'Enter' && e.target.value.trim() !== '') {
-            if(!registeredFamilies.includes(e.target.value.trim())) {
-                registeredFamilies.push(e.target.value.trim());
+            let newFam = e.target.value.trim();
+            if(!registeredFamilies.includes(newFam)) {
+                registeredFamilies.push(newFam);
                 localStorage.setItem('legacy_families', JSON.stringify(registeredFamilies));
                 renderFamilyList();
                 buildFilters();
@@ -210,6 +225,7 @@
         let html = '';
         filtered.forEach(p => {
             let visitedFamilies = (p.Familias || "").split(',').map(s => s.trim()).filter(Boolean);
+            
             let familyButtons = registeredFamilies.map(fam => {
                 let isActive = visitedFamilies.includes(fam) ? 'active' : '';
                 return `<span class="family-tag ${isActive}" onclick="toggleFamily('${p.ID}', '${fam}')">${fam}</span>`;
@@ -224,32 +240,39 @@
             </tr>`;
         });
         tbody.innerHTML = html;
-        updateMapMarkers(); // Chamada da função corrigida abaixo
+        updateMapMarkers(filtered); // Passando a lista filtrada para o mapa
     }
 
-    // A FUNÇÃO BLINDADA QUE ESTAVA FALTANDO
-    // Adicione esta lógica no seu HTML para o Mapa (substitua sua antiga updateMapMarkers)
-function updateMapMarkers() {
-    if(!markerLayer) return;
-    markerLayer.clearLayers();
-    
-    places.forEach(p => {
-        let lat = parseFloat(p.Lat);
-        let lng = parseFloat(p.Lng);
-        if (!isNaN(lat) && lat !== 0) {
-            let visited = (p.Familias || "").split(',').map(s => s.trim()).filter(Boolean);
-            let totalFamilies = registeredFamilies.length;
+    // MAPA COM MARCAÇÕES FORTES (Ajuste #1)
+    function updateMapMarkers(dataToRender) {
+        if(!markerLayer) return;
+        markerLayer.clearLayers();
+        
+        dataToRender.forEach(p => {
+            let lat = parseFloat(p.Lat);
+            let lng = parseFloat(p.Lng);
             
-            // Lógica de cores: Azul (0), Laranja (parcial), Verde (todos)
-            let col = visited.length === 0 ? "#2b6cb0" : 
-                      (visited.length === totalFamilies ? "#2f855a" : "#dd6b20");
-            
-            const marker = L.circleMarker([lat, lng], { radius: 7, fillColor: col, color: "#fff", weight: 1.5 });
-            marker.bindPopup(`<b>${p.Nome}</b><br>Visitado por: ${visited.join(', ') || 'Ninguém'}`);
-            markerLayer.addLayer(marker);
-        }
-    });
-}
+            if (!isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0) {
+                let visited = (p.Familias || "").split(',').map(s => s.trim()).filter(Boolean);
+                let totalFamilies = registeredFamilies.length;
+                
+                // Azul (Ninguém), Laranja (Parcial), Verde (Todos)
+                let col = visited.length === 0 ? "#2b6cb0" : 
+                          (visited.length === totalFamilies ? "#2f855a" : "#dd6b20");
+                
+                const marker = L.circleMarker([lat, lng], { 
+                    radius: 9, // Bolinhas maiores
+                    fillColor: col, 
+                    color: "#1a202c", // Borda escura para alto contraste
+                    weight: 2, // Borda mais grossa
+                    fillOpacity: 1.0 // Cor totalmente sólida, zero transparência
+                });
+                
+                marker.bindPopup(`<b>${p.Nome}</b><br>Visitado por: ${visited.join(', ') || 'Ninguém'}`);
+                markerLayer.addLayer(marker);
+            }
+        });
+    }
 
     async function toggleFamily(placeId, familyName) {
         document.getElementById('loader').style.display = 'inline-block';
@@ -281,15 +304,14 @@ function updateMapMarkers() {
     function exportarParaGemini() {
         const missingFam = document.getElementById('filter-missing-family').value;
         if (missingFam === "Todos") {
-            alert("Por favor, no filtro 'Exibir apenas NÃO VISITADOS por:', selecione qual família fará a viagem para eu gerar o prompt resumido!");
+            alert("Selecione no filtro 'Exibir apenas NÃO VISITADOS por' a família que vai viajar. Assim o prompt não fica gigante!");
             return;
         }
 
-        // Filtra os destinos que essa família AINDA NÃO visitou
         let filtrados = places.filter(p => !(p.Familias || "").includes(missingFam));
         const compact = filtrados.map(p => `${p.ID}|${p.Custo}|${p.Hub}`);
         
-        const promptFinal = `=== PLANEJAMENTO DE VIAGEM ===\nFamília Viajante: ${missingFam}\nDestinos Disponíveis (ID|Custo|Hub):\n${compact.join('\n')}\n=== FIM ===\nGemini, baseado nesta lista acima que nós AINDA NÃO visitamos, monte um roteiro para [INSERIR DIAS] dias com o orçamento total de [INSERIR VALOR R$].`;
+        const promptFinal = `=== PLANEJAMENTO DE VIAGEM ===\nFamília Viajante: ${missingFam}\nDestinos Não Visitados (ID|Custo|Hub):\n${compact.join('\n')}\n=== FIM ===\nGemini, baseado nesta lista acima, monte um roteiro para [X] dias com orçamento de [R$ Y].`;
         
         document.getElementById('exportArea').value = promptFinal;
         document.getElementById('exportModal').style.display = 'block';
