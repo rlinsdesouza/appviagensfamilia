@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Legado 40 Anos - Expedição Família</title>
+    <title>Projeto - Expedição Família</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         body { font-family: 'Segoe UI', Arial, sans-serif; background-color: #f4f6f9; color: #333; margin: 0; padding: 20px; }
@@ -33,7 +33,7 @@
 
 <div class="container">
     <div class="header-area">
-        <h1>🌳 Legado de Viagens (Horizontes 2026 - 2066)</h1>
+        <h1>🌳 Legado de Viagens - Os locais que já conhecemos</h1>
         <div>
             <span id="loader">🔄 Sincronizando com a Nuvem...</span>
             <input type="file" id="json-loader" accept=".json" style="display:none" onchange="uploadJSONBase(this)">
@@ -50,6 +50,10 @@
     </div>
 
     <div class="filters">
+	<div>
+        <label>Busca Rápida (Nome, Região ou ID)</label>
+        <input type="text" id="search-input" placeholder="🔍 Digite para buscar..." onkeyup="renderData()">
+    </div>
         <div>
             <label>Filtrar por Região</label>
             <select id="filter-region" onchange="renderData()"><option value="Todos">Todos</option></select>
@@ -113,7 +117,7 @@
     }
 
     async function loadData() {
-        if(API_URL === "SUA_URL_DO_APP_DA_WEB_AQUI" || API_URL.includes("/dev")) { 
+        if(API_URL === "https://script.google.com/macros/s/AKfycbwdObj1lgLe0CPvwuKzckP2h6CPUm0Rb-1BTmz6PyYQU91krkJad5i9GiP0Tns7RGn_qg/exec" || API_URL.includes("/dev")) { 
             alert("Por favor, cole a URL de produção (/exec) do Google Apps Script na variável API_URL do HTML!"); 
             return; 
         }
@@ -215,12 +219,31 @@
 
     function renderData() {
         const reg = document.getElementById('filter-region').value;
-        const missingFam = document.getElementById('filter-missing-family').value;
-        const tbody = document.getElementById('table-body');
+    const cat = document.getElementById('filter-category').value;
+    const dur = document.getElementById('filter-duration').value;
+    const missingFam = document.getElementById('filter-missing-family').value;
+    
+    // Captura o termo de busca e normaliza para minúsculo
+    const searchTerm = document.getElementById('search-input').value.toLowerCase();
+    
+    const tbody = document.getElementById('table-body');
+    
+    // O filtro agora encadeia 4 condições simultâneas
+    let filtered = places.filter(p => {
+        const matchRegion = (reg === 'Todos' || p.Regiao.startsWith(reg));
+        const matchCategory = (cat === 'Todos' || p.Categoria === cat);
+        const matchDuration = (dur === 'Todos' || p.Janela === dur);
+        const matchMissingFam = (missingFam === 'Todos' || !(p.Familias || "").includes(missingFam));
         
-        let filtered = places;
-        if(reg !== 'Todos') filtered = filtered.filter(p => p.Regiao.startsWith(reg));
-        if(missingFam !== 'Todos') filtered = filtered.filter(p => !(p.Familias || "").includes(missingFam));
+        // A busca varre Nome, Regiao ou ID
+        const matchSearch = (
+            p.Nome.toLowerCase().includes(searchTerm) || 
+            p.Regiao.toLowerCase().includes(searchTerm) || 
+            p.ID.toLowerCase().includes(searchTerm)
+        );
+        
+        return matchRegion && matchCategory && matchDuration && matchMissingFam && matchSearch;
+    });
 
         let html = '';
         filtered.forEach(p => {
@@ -231,13 +254,18 @@
                 return `<span class="family-tag ${isActive}" onclick="toggleFamily('${p.ID}', '${fam}')">${fam}</span>`;
             }).join('');
 
-            html += `<tr>
-                <td><b>${p.ID}</b></td>
-                <td><b>${p.Regiao}</b><br>${p.Nome}</td>
-                <td>${p.Janela}<br><small style="color:#2b6cb0;">Hub: ${p.Hub}</small></td>
-                <td>${p.Custo}</td>
-                <td><div class="family-tags">${familyButtons}</div></td>
-            </tr>`;
+       
+html += `<tr>
+    <td><b>${p.ID}</b></td>
+    <td><b>${p.Regiao}</b><br>${p.Nome}</td>
+    <td>${p.Janela}<br><small>${p.Hub}</small></td>
+    <td>${p.Custo}</td>
+    <td><div class="family-tags">${familyButtons}</div></td>
+    <td>
+        <button onclick="abrirModal('${p.ID}')" style="cursor:pointer">✏️</button>
+        <button onclick="excluirDestino('${p.ID}')" style="cursor:pointer">🗑️</button>
+    </td>
+</tr>`;
         });
         tbody.innerHTML = html;
         updateMapMarkers(filtered); // Passando a lista filtrada para o mapa
@@ -316,6 +344,45 @@
         document.getElementById('exportArea').value = promptFinal;
         document.getElementById('exportModal').style.display = 'block';
     }
+	
+	async function excluirDestino(id) {
+    if(!confirm("Tem certeza que deseja excluir este destino?")) return;
+    await fetch(API_URL, { 
+        method: 'POST', redirect: 'follow', 
+        body: JSON.stringify({ action: 'delete_row', id: id }) 
+    });
+    loadData();
+}
+
+async function abrirModal(id = null) {
+    // Se for edição, preenche o form. Se não, limpa.
+    document.getElementById('modalDestino').style.display = 'block';
+    // (Logica de preenchimento dos inputs: ID, Nome, Regiao, etc...)
+}
+
+async function salvarDestino() {
+    let data = {
+        ID: document.getElementById('modal-id').value,
+        Regiao: document.getElementById('modal-regiao').value,
+        Nome: document.getElementById('modal-nome').value,
+        Categoria: document.getElementById('modal-cat').value,
+        Meses_Ideais: "", // Preencher
+        Esforco: "", // Preencher
+        Janela: "", // Preencher
+        Custo: "", // Preencher
+        Hub: "", // Preencher
+        Lat: document.getElementById('modal-lat').value,
+        Lng: document.getElementById('modal-lng').value,
+        Familias: ""
+    };
+    
+    await fetch(API_URL, { 
+        method: 'POST', redirect: 'follow', 
+        body: JSON.stringify({ action: 'save_row', data: data }) 
+    });
+    document.getElementById('modalDestino').style.display = 'none';
+    loadData();
+}
 </script>
 </body>
 </html>
