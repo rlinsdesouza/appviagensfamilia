@@ -203,10 +203,54 @@
         }
     }
 
-    function renderFamilyList() {
-        const div = document.getElementById('family-list');
-        div.innerHTML = registeredFamilies.map(f => `<span class="family-tag active">${f}</span>`).join('');
+function renderFamilyList() {
+    const div = document.getElementById('family-list');
+    div.innerHTML = registeredFamilies.map(f => `
+        <span class="family-tag active">
+            ${f}
+            <button onclick="renomearFamilia('${f}')" style="border:none; background:transparent; cursor:pointer; font-size:10px;">✏️</button>
+            <button onclick="removeFamily('${f}')" style="border:none; background:transparent; cursor:pointer; font-size:10px; color:red;">×</button>
+        </span>
+    `).join('');
+}
+
+async function renomearFamilia(oldName) {
+    let newName = prompt(`Digite o novo nome para a família "${oldName}":`);
+    if (!newName || newName === oldName) return;
+
+    document.getElementById('loader').style.display = 'inline-block';
+    
+    // 1. Atualiza a lista global
+    registeredFamilies = registeredFamilies.map(f => f === oldName ? newName : f);
+    localStorage.setItem('legacy_families', JSON.stringify(registeredFamilies));
+
+    // 2. Atualiza todos os destinos na planilha
+    for (let p of places) {
+        let visited = (p.Familias || "").split(',').map(s => s.trim()).filter(Boolean);
+        if (visited.includes(oldName)) {
+            // Substitui o nome antigo pelo novo
+            p.Familias = visited.map(f => f === oldName ? newName : f).join(', ');
+            
+            // Salva linha no backend
+            await fetch(API_URL, {
+                method: 'POST', redirect: 'follow',
+                body: JSON.stringify({ action: 'save_row', data: p })
+            });
+        }
     }
+    loadData();
+}
+
+async function removeFamily(familyName) {
+    // Validação Matemática
+    if (!confirmarMatematica()) {
+        alert("Resposta errada! Ação cancelada por segurança.");
+        return;
+    }
+    
+    // Lógica de remoção (mesma que tínhamos, agora com a validação)
+    // ... (restante da sua função removeFamily)
+}
 
     function buildFilters() {
         const fRegion = document.getElementById('filter-region');
@@ -353,8 +397,14 @@ html += `<tr>
         document.getElementById('exportModal').style.display = 'block';
     }
 	
-	async function excluirDestino(id) {
-    if(!confirm("Tem certeza que deseja excluir este destino?")) return;
+async function excluirDestino(id) {
+    // Validação Matemática
+    if (!confirmarMatematica()) {
+        alert("Resposta errada! Ação cancelada por segurança.");
+        return;
+    }
+    
+    document.getElementById('loader').style.display = 'inline-block';
     await fetch(API_URL, { 
         method: 'POST', redirect: 'follow', 
         body: JSON.stringify({ action: 'delete_row', id: id }) 
@@ -362,35 +412,94 @@ html += `<tr>
     loadData();
 }
 
-async function abrirModal(id = null) {
-    // Se for edição, preenche o form. Se não, limpa.
-    document.getElementById('modalDestino').style.display = 'block';
-    // (Logica de preenchimento dos inputs: ID, Nome, Regiao, etc...)
+function abrirModal(id) {
+    const modal = document.getElementById('modalDestino');
+    modal.style.display = 'block';
+    
+    let p = places.find(x => x.ID == id);
+    if(p) {
+        document.getElementById('modal-id').value = p.ID;
+        document.getElementById('modal-nome').value = p.Nome;
+        document.getElementById('modal-regiao').value = p.Regiao;
+        document.getElementById('modal-lat').value = p.Lat;
+        document.getElementById('modal-lng').value = p.Lng;
+    }
 }
 
 async function salvarDestino() {
-    let data = {
-        ID: document.getElementById('modal-id').value,
-        Regiao: document.getElementById('modal-regiao').value,
-        Nome: document.getElementById('modal-nome').value,
-        Categoria: document.getElementById('modal-cat').value,
-        Meses_Ideais: "", // Preencher
-        Esforco: "", // Preencher
-        Janela: "", // Preencher
-        Custo: "", // Preencher
-        Hub: "", // Preencher
-        Lat: document.getElementById('modal-lat').value,
-        Lng: document.getElementById('modal-lng').value,
-        Familias: ""
-    };
+    let id = document.getElementById('modal-id').value;
+    let p = places.find(x => x.ID == id);
+    
+    // Atualiza o objeto local
+    p.Nome = document.getElementById('modal-nome').value;
+    p.Regiao = document.getElementById('modal-regiao').value;
+    p.Lat = document.getElementById('modal-lat').value;
+    p.Lng = document.getElementById('modal-lng').value;
+    
+    document.getElementById('loader').style.display = 'inline-block';
     
     await fetch(API_URL, { 
-        method: 'POST', redirect: 'follow', 
-        body: JSON.stringify({ action: 'save_row', data: data }) 
+        method: 'POST', 
+        redirect: 'follow', 
+        body: JSON.stringify({ action: 'save_row', data: p }) 
     });
+    
     document.getElementById('modalDestino').style.display = 'none';
-    loadData();
+    loadData(); // Recarrega tudo da planilha
+}
+
+async function removeFamily(familyName) {
+    if(!confirm(`Tem certeza que deseja apagar a família "${familyName}"?\nIsso removerá o histórico dela de TODOS os destinos.`)) return;
+    
+    document.getElementById('loader').style.display = 'inline-block';
+    document.getElementById('loader').innerText = '🔥 Removendo família...';
+
+    // 1. Remove da lista global
+    registeredFamilies = registeredFamilies.filter(f => f !== familyName);
+    localStorage.setItem('legacy_families', JSON.stringify(registeredFamilies));
+    
+    // 2. Percorre todos os destinos para limpar o histórico dessa família
+    for(let p of places) {
+        let visited = (p.Familias || "").split(',').map(s => s.trim()).filter(Boolean);
+        
+        if(visited.includes(familyName)) {
+            // Remove a família da lista
+            p.Familias = visited.filter(f => f !== familyName).join(', ');
+            
+            // Envia a atualização para o Google Sheets (usando sua API já pronta)
+            await fetch(API_URL, {
+                method: 'POST',
+                redirect: 'follow',
+                body: JSON.stringify({ id: p.ID, familias: p.Familias })
+            });
+        }
+    }
+    
+    // 3. Atualiza a interface
+    renderFamilyList();
+    buildFilters();
+    renderData();
+    document.getElementById('loader').style.display = 'none';
+}
+
+function confirmarMatematica() {
+    let n1 = Math.floor(Math.random() * 9) + 1;
+    let n2 = Math.floor(Math.random() * 9) + 1;
+    let respostaUsuario = prompt(`Segurança: Para confirmar esta ação, responda quanto é ${n1} + ${n2}:`);
+    return parseInt(respostaUsuario) === (n1 + n2);
 }
 </script>
+<div id="modalDestino" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); background:white; padding:25px; border-radius:10px; z-index:1000; box-shadow:0 0 20px rgba(0,0,0,0.5); width: 400px;">
+    <h3 id="modalTitle">Editar Destino</h3>
+    <label>ID:</label><input type="text" id="modal-id" disabled>
+    <label>Nome:</label><input type="text" id="modal-nome">
+    <label>Região:</label><input type="text" id="modal-regiao">
+    <label>Latitude:</label><input type="text" id="modal-lat">
+    <label>Longitude:</label><input type="text" id="modal-lng">
+    <div style="margin-top:15px; display: flex; gap: 10px;">
+        <button class="btn" style="background:#2f855a" onclick="salvarDestino()">Salvar</button>
+        <button class="btn" style="background:#718096" onclick="document.getElementById('modalDestino').style.display='none'">Cancelar</button>
+    </div>
+</div>
 </body>
 </html>
