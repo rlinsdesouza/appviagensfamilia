@@ -109,19 +109,20 @@
     }
 
     async function loadData() {
-        if(API_URL === "SUA_URL_DO_APP_DA_WEB_AQUI") { alert("Você esqueceu de colar a URL da API no código HTML!"); return; }
-        
-        document.getElementById('loader').style.display = 'inline-block';
-        try {
-            let res = await fetch(API_URL);
-            places = await res.json();
-            buildFilters();
-            renderData();
-        } catch (error) {
-            alert("Erro ao baixar dados da Nuvem.");
-        }
-        document.getElementById('loader').style.display = 'none';
+    document.getElementById('loader').style.display = 'inline-block';
+    // Adicionamos o {redirect: 'follow'} para seguir o redirecionamento 302 do Google
+    try {
+        let res = await fetch(API_URL, { redirect: 'follow' });
+        if (!res.ok) throw new Error('Erro na rede');
+        places = await res.json();
+        buildFilters();
+        renderData();
+    } catch (error) {
+        console.error(error);
+        alert("Erro ao baixar dados da Nuvem. Verifique se a URL da API está correta e se você criou uma 'Nova Versão' na implantação.");
     }
+    document.getElementById('loader').style.display = 'none';
+}
 
     function addFamily(e) {
         if (e.key === 'Enter' && e.target.value.trim() !== '') {
