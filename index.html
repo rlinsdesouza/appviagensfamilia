@@ -54,10 +54,11 @@
         <label>Busca Rápida (Nome, Região ou ID)</label>
         <input type="text" id="search-input" placeholder="🔍 Digite para buscar..." onkeyup="renderData()">
     </div>
-        <div>
-            <label>Filtrar por Região</label>
-            <select id="filter-region" onchange="renderData()"><option value="Todos">Todos</option></select>
-        </div>
+    <div>
+        <label>Filtrar por Região</label>
+        <select id="filter-region" onchange="renderData()"><option value="Todos">Todos</option></select>
+    </div>
+    </div>
         <div>
             <label>Exibir apenas NÃO VISITADOS por:</label>
             <select id="filter-missing-family" onchange="renderData()">
@@ -218,13 +219,20 @@
     }
 
     function renderData() {
-        const reg = document.getElementById('filter-region').value;
-    const cat = document.getElementById('filter-category').value;
-    const dur = document.getElementById('filter-duration').value;
-    const missingFam = document.getElementById('filter-missing-family').value;
+    // Busca os elementos com segurança (retorna vazio se não achar)
+    const elReg = document.getElementById('filter-region');
+    const elCat = document.getElementById('filter-category');
+    const elDur = document.getElementById('filter-duration');
+    const elFam = document.getElementById('filter-missing-family');
+    const elSearch = document.getElementById('search-input');
+
+    const reg = elReg ? elReg.value : 'Todos';
+    const cat = elCat ? elCat.value : 'Todos';
+    const dur = elDur ? elDur.value : 'Todos';
+    const missingFam = elFam ? elFam.value : 'Todos';
+    const searchTerm = elSearch ? elSearch.value.toLowerCase() : ''; // Se não achar o search, busca vazia
     
-    // Captura o termo de busca e normaliza para minúsculo
-    const searchTerm = document.getElementById('search-input').value.toLowerCase();
+    // ... resto da função permanece igual
     
     const tbody = document.getElementById('table-body');
     
