@@ -35,7 +35,9 @@
     <div class="header-area">
         <h1>🌳 Legado de Viagens (Horizontes 2026 - 2066)</h1>
         <div>
-            <span id="loader">🔄 Sincronizando com a Nuvem...</span>
+            <span id="loader">🔄 Sincronizando...</span>
+            <input type="file" id="json-loader" accept=".json" style="display:none" onchange="uploadJSONBase(this)">
+            <button class="btn" style="background: #d69e2e;" onclick="document.getElementById('json-loader').click()">📥 Fazer Upload da Base (JSON)</button>
             <button class="btn btn-sync" onclick="loadData()">🔄 Baixar Nuvem</button>
             <button class="btn btn-export" onclick="exportarParaGemini()">📤 Gerar Prompt IA</button>
         </div>
@@ -90,7 +92,7 @@
 <script>
     // =========================================================================
     // COLE AQUI O URL DA SUA API GERADA NO GOOGLE APPS SCRIPT (PASSO 2)
-    const API_URL = "https://script.google.com/macros/s/AKfycbxPF3zatMj4rxQ8qrmogHXWoiLLBhwFQrhGFQeBgUmfoCYki-Z8X77UB84119bMNLlzcw/exec"; 
+    const API_URL = "https://script.google.com/macros/s/AKfycbzneZQmpsv19DbQQruvQbMvXOu41X4ZY6SoWHSjgrg5/dev"; 
     // =========================================================================
 
     let places = [];
@@ -101,6 +103,41 @@
         initMap();
         renderFamilyList();
     };
+
+    async function uploadJSONBase(input) {
+        const file = input.files[0];
+        if (!file) return;
+
+        document.getElementById('loader').style.display = 'inline-block';
+        document.getElementById('loader').innerText = '🚀 Subindo para a Planilha...';
+
+        const reader = new FileReader();
+        reader.onload = async function(e) {
+            try {
+                const jsonData = JSON.parse(e.target.result);
+                
+                // Dispara os dados para o seu Google Apps Script (Testando a segurança de edição)
+                let response = await fetch(API_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({ action: 'bulk_import', data: jsonData })
+                });
+
+                let resData = await response.json();
+                if (resData.status === 'success') {
+                    alert(resData.msg);
+                    loadData(); // Puxa os dados atualizados para a tela
+                } else {
+                    alert("Acesso Negado ou Erro no Google.");
+                }
+            } catch (err) {
+                alert("Erro: Você não tem permissão de editor na planilha ou o JSON está corrompido.");
+            }
+            document.getElementById('loader').style.display = 'none';
+            document.getElementById('loader').innerText = '🔄 Sincronizando...';
+            input.value = ''; // Limpa o seletor de arquivos
+        };
+        reader.readAsText(file);
+    }
 
     function initMap() {
         map = L.map('map').setView([-10, -35], 4);
@@ -243,9 +280,17 @@ function updateMapMarkers() {
     }
 
     function exportarParaGemini() {
-        // Gera o prompt compactado perfeitamente estruturado para a IA ler orçamentos e famílias
-        const compact = places.map(p => `${p.ID}|${p.Custo}|${p.Hub}|${p.Familias||'0'}`);
-        const promptFinal = `=== BANCO DE DADOS ATUAL - PROJETO 40 ANOS ===\nFamílias Registradas: ${registeredFamilies.join(', ')}\n\nDados (ID|Custo|Hub|Familias):\n${compact.join('\n')}\n\n=== FIM DO BANCO ===\nGemini, este é meu status atualizado. Aguardo seu OK para enviar meu desafio de viagem com os requisitos de orçamento e famílias!`;
+        const missingFam = document.getElementById('filter-missing-family').value;
+        if (missingFam === "Todos") {
+            alert("Por favor, no filtro 'Exibir apenas NÃO VISITADOS por:', selecione qual família fará a viagem para eu gerar o prompt resumido!");
+            return;
+        }
+
+        // Filtra os destinos que essa família AINDA NÃO visitou
+        let filtrados = places.filter(p => !(p.Familias || "").includes(missingFam));
+        const compact = filtrados.map(p => `${p.ID}|${p.Custo}|${p.Hub}`);
+        
+        const promptFinal = `=== PLANEJAMENTO DE VIAGEM ===\nFamília Viajante: ${missingFam}\nDestinos Disponíveis (ID|Custo|Hub):\n${compact.join('\n')}\n=== FIM ===\nGemini, baseado nesta lista acima que nós AINDA NÃO visitamos, monte um roteiro para [INSERIR DIAS] dias com o orçamento total de [INSERIR VALOR R$].`;
         
         document.getElementById('exportArea').value = promptFinal;
         document.getElementById('exportModal').style.display = 'block';
