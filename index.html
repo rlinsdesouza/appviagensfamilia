@@ -45,7 +45,7 @@
 
     <div style="background: #fffaf0; border-left: 4px solid #dd6b20; padding: 15px; border-radius: 6px; margin-bottom: 20px;">
         <label>Defina os Núcleos Familiares (Pressione Enter para adicionar):</label>
-        <input type="text" id="family-input" placeholder="Ex: Familia Pais, Familia Joao" onkeypress="addFamily(event)" style="max-width: 400px;">
+        <input type="text" id="family-input" placeholder="Ex: Nome da família ou Nome da pessoa" onkeypress="addFamily(event)" style="max-width: 400px;">
         <div id="family-list" style="margin-top: 10px; display: flex; gap: 10px; flex-wrap: wrap;"></div>
     </div>
 
@@ -97,7 +97,7 @@
 <script>
     // =========================================================================
     // COLE AQUI O SEU LINK DA API (O que termina com /exec)
-    const API_URL = "https://script.google.com/macros/s/AKfycbxJbQgrIj-84z90kIMcv2PchgWMvIFRAHJGVTGUuDa-nUJtyHEUFZaHwOz2RZC_EAGYBw/exec"; 
+    const API_URL = "https://script.google.com/macros/s/AKfycbybuy7o6_kfdtFPNrquHYEHXL12gezE0EpeKt6hyMiAmgSd-9lnn360ik24G9ngblp7wA/exec"; 
     // =========================================================================
 
     let places = [];
@@ -398,18 +398,31 @@ html += `<tr>
     }
 	
 async function excluirDestino(id) {
-    // Validação Matemática
+    // 1. Validação Matemática
     if (!confirmarMatematica()) {
-        alert("Resposta errada! Ação cancelada por segurança.");
+        alert("Resposta errada! Ação cancelada.");
         return;
     }
     
     document.getElementById('loader').style.display = 'inline-block';
-    await fetch(API_URL, { 
-        method: 'POST', redirect: 'follow', 
+    
+    // 2. Fetch para o Backend
+    let response = await fetch(API_URL, { 
+        method: 'POST', 
+        redirect: 'follow', 
         body: JSON.stringify({ action: 'delete_row', id: id }) 
     });
-    loadData();
+    
+    let result = await response.json();
+    
+    if(result.status === "success") {
+        alert("Destino excluído com sucesso!");
+        await loadData(); // 3. Recarrega a base do servidor para o HTML atualizar
+    } else {
+        alert("Erro ao excluir: " + result.msg);
+    }
+    
+    document.getElementById('loader').style.display = 'none';
 }
 
 function abrirModal(id) {
@@ -449,31 +462,35 @@ async function salvarDestino() {
 }
 
 async function removeFamily(familyName) {
-    if(!confirm(`Tem certeza que deseja apagar a família "${familyName}"?\nIsso removerá o histórico dela de TODOS os destinos.`)) return;
+    // 1. Validação Matemática
+    if (!confirmarMatematica()) {
+        alert("Resposta errada! Ação cancelada.");
+        return;
+    }
     
     document.getElementById('loader').style.display = 'inline-block';
     document.getElementById('loader').innerText = '🔥 Removendo família...';
 
-    // 1. Remove da lista global
+    // 2. Remove da lista global
     registeredFamilies = registeredFamilies.filter(f => f !== familyName);
     localStorage.setItem('legacy_families', JSON.stringify(registeredFamilies));
     
-    // 2. Percorre todos os destinos para limpar o histórico dessa família
+    // 3. Atualiza os destinos
     for(let p of places) {
         let visited = (p.Familias || "").split(',').map(s => s.trim()).filter(Boolean);
-        
         if(visited.includes(familyName)) {
-            // Remove a família da lista
             p.Familias = visited.filter(f => f !== familyName).join(', ');
-            
-            // Envia a atualização para o Google Sheets (usando sua API já pronta)
             await fetch(API_URL, {
-                method: 'POST',
-                redirect: 'follow',
+                method: 'POST', redirect: 'follow',
                 body: JSON.stringify({ id: p.ID, familias: p.Familias })
             });
         }
     }
+    
+    renderFamilyList();
+    renderData();
+    document.getElementById('loader').style.display = 'none';
+}
     
     // 3. Atualiza a interface
     renderFamilyList();

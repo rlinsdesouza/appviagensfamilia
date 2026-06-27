@@ -49,16 +49,17 @@ function doPost(e) {
     return ContentService.createTextOutput(JSON.stringify({status: "success"})).setMimeType(ContentService.MimeType.JSON);
   }
 
-  // 2. AÇÃO: EXCLUIR
+ // AÇÃO: EXCLUIR
   else if (params.action === 'delete_row') {
+    var idParaDeletar = params.id.toString(); // Forçamos para texto
     for (var i = 1; i < data.length; i++) {
-      if (data[i][0] == params.id) {
+      if (data[i][0].toString() == idParaDeletar) {
         sheet.deleteRow(i + 1);
         return ContentService.createTextOutput(JSON.stringify({status: "success"})).setMimeType(ContentService.MimeType.JSON);
       }
     }
+    return ContentService.createTextOutput(JSON.stringify({status: "error", msg: "ID não encontrado"})).setMimeType(ContentService.MimeType.JSON);
   }
-
   // 3. AÇÃO PADRÃO: ATUALIZAR FAMÍLIAS (Sua lógica original preservada)
   else {
     for (var i = 1; i < data.length; i++) {
