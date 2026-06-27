@@ -118,7 +118,7 @@
     }
 
     async function loadData() {
-        if(API_URL === "https://script.google.com/macros/s/AKfycbxFfDAYafPD2iS7dcw8QUM7WuTJ2aHq-hN5C2ji6JZ_Bm0T4iPqD_w_qf_4oehR1K5jaQ/exec" || API_URL.includes("/dev")) { 
+        if(API_URL === "https://script.google.com/macros/s/AKfycbzm-Mx-05bSGcSWWjFk-opgbhycOIHRd591dVZTxJwJpP7fMWtlQp5H6M1TtE07KptO9w/exec" || API_URL.includes("/dev")) { 
             alert("Por favor, cole a URL de produção (/exec) do Google Apps Script na variável API_URL do HTML!"); 
             return; 
         }
@@ -306,6 +306,7 @@ html += `<tr>
     <td>${p.Custo}</td>
     <td><div class="family-tags">${familyButtons}</div></td>
     <td>
+		<button onclick="registrarVisita('${p.ID}')" class="btn" style="background:green; font-size:10px;">+ Visita</button>
         <button onclick="abrirModal('${p.ID}')" style="cursor:pointer">✏️</button>
         <button onclick="excluirDestino('${p.ID}')" style="cursor:pointer">🗑️</button>
     </td>
@@ -492,6 +493,57 @@ function confirmarMatematica() {
     let respostaUsuario = prompt(`Segurança: Para confirmar esta ação, responda quanto é ${n1} + ${n2}:`);
     return parseInt(respostaUsuario) === (n1 + n2);
 }
+
+async function registrarVisita(id) {
+    let familia = prompt("Qual família visitou este local?");
+    if (!familia) return;
+
+    let p = places.find(x => x.ID == id);
+    if (!p) return;
+
+    let dataHoje = new Date().toLocaleDateString('pt-BR');
+    let registro = `${familia}:${dataHoje}`;
+    
+    // Concatena o novo registro ao histórico existente
+    p.Historico = (p.Historico && p.Historico !== "undefined") ? `${p.Historico}; ${registro}` : registro;
+    
+    // Salva no backend
+    document.getElementById('loader').style.display = 'block';
+    await fetch(API_URL, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'save_row', data: p })
+    });
+    
+    document.getElementById('loader').style.display = 'none';
+    alert("Visita de " + familia + " registrada com sucesso!");
+    loadData(); // Atualiza a tabela
+}
+
+// 3. Atualização no Modal (Salvar novo ou editar existente)
+async function salvarDestino() {
+    let p = {
+        ID: document.getElementById('m-id').value,
+        Nome: document.getElementById('m-nome').value,
+        Regiao: document.getElementById('m-regiao').value,
+        Lat: document.getElementById('m-lat').value,
+        Lng: document.getElementById('m-lng').value,
+        Historico: document.getElementById('m-historico') ? document.getElementById('m-historico').value : ""
+    };
+    await salvarDestinoNoBackend(p);
+    document.getElementById('modalDestino').style.display = 'none';
+    loadData();
+}
+
+// 2. Função de salvamento (Backend) - Usada tanto pelo Modal quanto pela Visita
+async function salvarDestinoNoBackend(p) {
+    await fetch(API_URL, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'save_row', data: p })
+    });
+}
+
+
+
 </script>
 <div id="modalDestino" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); background:white; padding:25px; border-radius:10px; z-index:1000; box-shadow:0 0 20px rgba(0,0,0,0.5); width: 400px;">
     <h3 id="modalTitle">Editar Destino</h3>
@@ -500,6 +552,8 @@ function confirmarMatematica() {
     <label>Região:</label><input type="text" id="modal-regiao">
     <label>Latitude:</label><input type="text" id="modal-lat">
     <label>Longitude:</label><input type="text" id="modal-lng">
+	<label>Histórico de Visitas:</label>
+<textarea id="m-historico" style="width:100%; height:60px;" placeholder="Ex: Familia Silva:27/06/2026"></textarea><br>	
     <div style="margin-top:15px; display: flex; gap: 10px;">
         <button class="btn" style="background:#2f855a" onclick="salvarDestino()">Salvar</button>
         <button class="btn" style="background:#718096" onclick="document.getElementById('modalDestino').style.display='none'">Cancelar</button>
