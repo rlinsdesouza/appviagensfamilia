@@ -206,33 +206,31 @@
 }
 
 function parseIOverlander() {
-    const texto = document.getElementById('texto-ioverlander').value;
+    const textarea = document.getElementById('texto-ioverlander');
+    const texto = textarea.value;
     
-    // 1. Extrair a URL (procura por qualquer link que comece com ioverlander.com)
+    // 1. Extração
     const urlMatch = texto.match(/https?:\/\/ioverlander\.com\/places\/[a-zA-Z0-9-]+/);
     const url = urlMatch ? urlMatch[0] : "";
-    
-    // 2. Extrair coordenadas (procura números com vírgula, ex: -7.22, -35.88)
     const coordMatch = texto.match(/(-?\d+\.\d+),\s*(-?\d+\.\d+)/);
     const lat = coordMatch ? coordMatch[1] : "";
     const lng = coordMatch ? coordMatch[2] : "";
     
-    // 3. Extrair o Nome (geralmente é a primeira linha não vazia que não é o link)
-    // Removemos o link e as coordenadas do texto original para sobrar o nome
-    let nome = texto.replace(url, "").replace(coordMatch ? coordMatch[0] : "", "").trim();
-    nome = nome.split('\n')[0].trim(); // Pega a primeira linha restante
+    // Extração do Nome
+    let nome = texto.replace(url, "").replace(coordMatch ? coordMatch[0] : "", "").split('\n')[0].trim();
 
-    // 4. Preencher o Modal
-    document.getElementById('modal-id').value = "IOV-" + Date.now(); // Gera um ID único na hora
+    // 2. Preencher os campos do seu modal
+    document.getElementById('modal-id').value = "IOV-" + Date.now(); 
     document.getElementById('modal-nome').value = nome;
     document.getElementById('modal-lat').value = lat;
     document.getElementById('modal-lng').value = lng;
     document.getElementById('modal-historico').value = "Fonte: iOverlander\n" + url;
     
-    // 5. Abrir o Modal (Use a função que você já tem para abrir o modal)
-    // Exemplo: document.getElementById('modalDestino').style.display = 'block';
-    
-    alert("Dados extraídos! Agora você pode editar os detalhes no formulário e clicar em Salvar.");
+    // 3. Abrir o modal
+    document.getElementById('modalDestino').style.display = 'block'; 
+
+    // 4. LIMPEZA IMEDIATA: Apaga o texto do input assim que os dados sobem para o modal
+    textarea.value = '';
 }
 
     function addFamily(e) {
