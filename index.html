@@ -111,6 +111,8 @@
     let places = [];
     let registeredFamilies = JSON.parse(localStorage.getItem('legacy_families'));
     let map, markerLayer;
+	// Paleta de cores para até 6 famílias (se precisar de mais, é só adicionar aqui)
+const palette = ["#2f855a", "#2b6cb0", "#dd6b20", "#805ad5", "#c53030", "#d69e2e"];
 
     // AUTO-CARREGAMENTO (Ajuste #2)
     window.onload = function() {
@@ -169,7 +171,7 @@
     document.getElementById('loader').style.display = 'none';
 }
 
-    async function uploadJSONBase(input) {
+   async function uploadJSONBase(input) {
     const file = input.files[0];
     if (!file) return;
 
@@ -368,36 +370,58 @@ html += `<tr>
         updateMapMarkers(filtered); // Passando a lista filtrada para o mapa
     }
 
+function getFamilyColor(familyName) {
+    let index = registeredFamilies.indexOf(familyName) % palette.length;
+    return palette[index];
+}
+
+
     // MAPA COM MARCAÇÕES FORTES (Ajuste #1)
     function updateMapMarkers(dataToRender) {
-        if(!markerLayer) return;
-        markerLayer.clearLayers();
+    if(!markerLayer) return;
+    markerLayer.clearLayers();
+    
+    dataToRender.forEach(p => {
+        let lat = parseFloat(p.Lat);
+        let lng = parseFloat(p.Lng);
         
-        dataToRender.forEach(p => {
-            let lat = parseFloat(p.Lat);
-            let lng = parseFloat(p.Lng);
+        if (!isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0) {
+            let visited = (p.Familias || "").split(',').map(s => s.trim()).filter(Boolean);
             
-            if (!isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0) {
-                let visited = (p.Familias || "").split(',').map(s => s.trim()).filter(Boolean);
-                let totalFamilies = registeredFamilies.length;
-                
-                // Azul (Ninguém), Laranja (Parcial), Verde (Todos)
-                let col = visited.length === 0 ? "#2b6cb0" : 
-                          (visited.length === totalFamilies ? "#2f855a" : "#dd6b20");
-                
-                const marker = L.circleMarker([lat, lng], { 
-                    radius: 4, // Bolinhas maiores
-                    fillColor: col, 
-                    color: "#1a202c", // Borda escura para alto contraste
-                    weight: 2, // Borda mais grossa
-                    fillOpacity: 1.0 // Cor totalmente sólida, zero transparência
-                });
-                
-                marker.bindPopup(`<b>${p.Nome}</b><br>Visitado por: ${visited.join(', ') || 'Ninguém'}`);
-                markerLayer.addLayer(marker);
+            // Lógica de Estilização
+            let isVisited = visited.length > 0;
+            let color;
+            let radius = isVisited ? 7 : 3;
+            let opacity = isVisited ? 1.0 : 0.3;
+            
+            if (visited.length === 1) {
+                // Visitado por apenas uma família -> Cor da família
+                color = getFamilyColor(visited[0]);
+            } else if (visited.length > 1) {
+                // Conquista compartilhada (Troféu) -> Dourado
+                color = "#ECC94B"; 
+                radius = 9; // Destaca como troféu especial
+            } else {
+                // Não visitado -> Cinza
+                color = "#A0AEC0";
             }
-        });
-    }
+            
+            const marker = L.circleMarker([lat, lng], { 
+                radius: radius,
+                fillColor: color, 
+                color: "#1a202c", 
+                weight: 1, 
+                fillOpacity: opacity 
+            });
+            
+            marker.bindPopup(`
+                <b>${p.Nome}</b><br>
+                ${isVisited ? '✅ Conquistado por: ' + visited.join(', ') : '📍 Oportunidade'}
+            `);
+            markerLayer.addLayer(marker);
+        }
+    });
+}
 
 async function toggleFamily(placeId, familyName) {
     document.getElementById('loader').style.display = 'inline-block';
