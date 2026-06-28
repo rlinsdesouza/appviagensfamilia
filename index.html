@@ -56,6 +56,11 @@
 		<button onclick="abrirModal()" class="btn" style="background:#2f855a; color:white; padding:10px; cursor:pointer;">
         + Novo Destino
     </button>
+	<div style="margin: 20px; padding: 15px; border: 1px solid #ccc; border-radius: 8px;">
+    <h4>Importar do iOverlander</h4>
+    <textarea id="texto-ioverlander" rows="3" style="width:100%;" placeholder="Cole o bloco do iOverlander aqui..."></textarea>
+    <button onclick="parseIOverlander()" style="margin-top: 10px;">Processar e Editar</button>
+</div>
     </div>
     <div>
         <label>Filtrar por Região</label>
@@ -104,7 +109,7 @@
     // =========================================================================
 
     let places = [];
-    let registeredFamilies = JSON.parse(localStorage.getItem('legacy_families')) || ['Pais', 'Joao', 'Maria'];
+    let registeredFamilies = JSON.parse(localStorage.getItem('legacy_families'));
     let map, markerLayer;
 
     // AUTO-CARREGAMENTO (Ajuste #2)
@@ -198,6 +203,36 @@
         }
     };
     reader.readAsText(file);
+}
+
+function parseIOverlander() {
+    const texto = document.getElementById('texto-ioverlander').value;
+    
+    // 1. Extrair a URL (procura por qualquer link que comece com ioverlander.com)
+    const urlMatch = texto.match(/https?:\/\/ioverlander\.com\/places\/[a-zA-Z0-9-]+/);
+    const url = urlMatch ? urlMatch[0] : "";
+    
+    // 2. Extrair coordenadas (procura números com vírgula, ex: -7.22, -35.88)
+    const coordMatch = texto.match(/(-?\d+\.\d+),\s*(-?\d+\.\d+)/);
+    const lat = coordMatch ? coordMatch[1] : "";
+    const lng = coordMatch ? coordMatch[2] : "";
+    
+    // 3. Extrair o Nome (geralmente é a primeira linha não vazia que não é o link)
+    // Removemos o link e as coordenadas do texto original para sobrar o nome
+    let nome = texto.replace(url, "").replace(coordMatch ? coordMatch[0] : "", "").trim();
+    nome = nome.split('\n')[0].trim(); // Pega a primeira linha restante
+
+    // 4. Preencher o Modal
+    document.getElementById('modal-id').value = "IOV-" + Date.now(); // Gera um ID único na hora
+    document.getElementById('modal-nome').value = nome;
+    document.getElementById('modal-lat').value = lat;
+    document.getElementById('modal-lng').value = lng;
+    document.getElementById('modal-historico').value = "Fonte: iOverlander\n" + url;
+    
+    // 5. Abrir o Modal (Use a função que você já tem para abrir o modal)
+    // Exemplo: document.getElementById('modalDestino').style.display = 'block';
+    
+    alert("Dados extraídos! Agora você pode editar os detalhes no formulário e clicar em Salvar.");
 }
 
     function addFamily(e) {
