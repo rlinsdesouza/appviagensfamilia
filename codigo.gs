@@ -92,6 +92,30 @@ function doPost(e) {
       if (!found) sheet.appendRow([p.ID, p.Regiao, p.Nome, p.Categoria, p.Meses_Ideais, p.Esforco, p.Janela, p.Custo, p.Hub, p.Lat, p.Lng, p.Familias, p.Historico]);
       return ContentService.createTextOutput(JSON.stringify({status: "success"})).setMimeType(ContentService.MimeType.JSON);
     }
+	
+	// AÇÃO: EXCLUIR LINHA
+    if (params.action === 'delete_row') {
+      var idParaDeletar = params.id;
+      var found = false;
+      
+      // Itera para encontrar a linha pelo ID (Coluna 1)
+      for (var i = 1; i < data.length; i++) {
+        if (data[i][0].toString() == idParaDeletar.toString()) {
+          sheet.deleteRow(i + 1); // Remove a linha da planilha
+          found = true; 
+          break;
+        }
+      }
+      
+      if (found) {
+        return ContentService.createTextOutput(JSON.stringify({status: "success"}))
+          .setMimeType(ContentService.MimeType.JSON);
+      } else {
+        return ContentService.createTextOutput(JSON.stringify({status: "error", msg: "ID não encontrado"}))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+    }
+	
     return ContentService.createTextOutput(JSON.stringify({status: "error", msg: "Ação inválida"})).setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
     return ContentService.createTextOutput(JSON.stringify({status: "error", msg: err.toString()})).setMimeType(ContentService.MimeType.JSON);

@@ -399,32 +399,56 @@ html += `<tr>
         });
     }
 
-    async function toggleFamily(placeId, familyName) {
-        document.getElementById('loader').style.display = 'inline-block';
-        let place = places.find(p => p.ID === placeId);
-        let visited = (place.Familias || "").split(',').map(s => s.trim()).filter(Boolean);
-        
-        if (visited.includes(familyName)) {
-            visited = visited.filter(f => f !== familyName);
-        } else {
-            visited.push(familyName);
-        }
-        
-        let newFamiliesStr = visited.join(', ');
-        place.Familias = newFamiliesStr;
-        renderData(); 
-
-        try {
-            await fetch(API_URL, {
-                method: 'POST',
-                redirect: 'follow',
-                body: JSON.stringify({ id: placeId, familias: newFamiliesStr })
-            });
-        } catch(e) {
-            console.error(e);
-        }
+async function toggleFamily(placeId, familyName) {
+    document.getElementById('loader').style.display = 'inline-block';
+    
+    // 1. Encontra o lugar
+    let place = places.find(p => p.ID === placeId);
+    if (!place) {
         document.getElementById('loader').style.display = 'none';
+        return;
     }
+
+    // 2. Lógica de Familias
+    let visited = (place.Familias || "").split(',').map(s => s.trim()).filter(Boolean);
+    let isRemoving = visited.includes(familyName);
+    
+    if (isRemoving) {
+        visited = visited.filter(f => f !== familyName);
+    } else {
+        visited.push(familyName);
+    }
+    place.Familias = visited.join(', ');
+
+    // 3. Lógica de Histórico (Remove se estiver saindo)
+    if (isRemoving) {
+        let historico = (place.Historico || "").split(';').map(h => h.trim());
+        place.Historico = historico.filter(h => !h.startsWith(familyName)).join('; ');
+    } else {
+        // Se estiver adicionando, você pode querer adicionar uma marcação (opcional)
+        place.Historico = (place.Historico ? place.Historico + '; ' : '') + familyName + ": Visitado";
+    }
+
+    // 4. Atualiza a tela imediatamente
+    renderData(); 
+
+    // 5. Salva no Banco (Backend)
+    try {
+        await fetch(API_URL, {
+            method: 'POST',
+            body: JSON.stringify({ 
+                action: 'save_row', // <--- Isso que faltava para o Backend entender
+                data: place         // <--- Enviando o objeto completo
+            })
+        });
+        console.log("Salvo com sucesso!");
+    } catch(e) {
+        console.error("Erro ao salvar:", e);
+        alert("Erro ao salvar no servidor.");
+    }
+    
+    document.getElementById('loader').style.display = 'none';
+}
 
     function exportarParaGemini() {
         const missingFam = document.getElementById('filter-missing-family').value;
